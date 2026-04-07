@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FortuneFlow – Intelligent Financial Assistant</title>
+  <meta name="description" content="Premium intelligent financial assistant for comprehensive expense tracking, budget management, and predictive analytics." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="extra.css" />
+  <link rel="stylesheet" href="theme.css" />
+</head>
+<body>
+<div class="app-wrapper">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="logo-mark" style="background: linear-gradient(135deg,#7C3AED,#EC4899); box-shadow: 0 4px 16px rgba(139,92,246,0.4); border-radius:12px; width:40px; height:40px; display:flex; align-items:center; justify-content:center; color:#fff"><i class="fas fa-compass" style="font-size:22px"></i></div>
+        <div class="logo-text-wrap" style="display:flex; flex-direction:column; justify-content:center">
+          <span class="logo-name" style="font-family:'Outfit',sans-serif; font-weight:800; font-size:18px; line-height:1.2; background: linear-gradient(135deg,#7C3AED,#EC4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">FortuneFlow</span>
+          <span class="logo-tagline" style="color:var(--text3); font-size:10.5px; text-transform:uppercase; letter-spacing:1px; font-weight:700;">Magic Compass</span>
+        </div>
+      </div>
+      <button class="collapse-btn" id="collapseBtn" title="Collapse sidebar">
+        <i class="fas fa-chevron-left"></i>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <span class="nav-label">Overview</span>
+        <a class="nav-item active" data-page="dashboard" id="nav-dashboard">
+          <span class="nav-icon"><i class="fas fa-th-large"></i></span>
+          <span class="nav-text">Dashboard</span>
+          <span class="nav-indicator"></span>
+        </a>
+        <a class="nav-item" data-page="expenses" id="nav-expenses">
+          <span class="nav-icon"><i class="fas fa-receipt"></i></span>
+          <span class="nav-text">Expenses</span>
+        </a>
+        <a class="nav-item" data-page="analysis" id="nav-analysis">
+          <span class="nav-icon"><i class="fas fa-chart-bar"></i></span>
+          <span class="nav-text">Analysis</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-label">Planning</span>
+        <a class="nav-item" data-page="prediction" id="nav-prediction">
+          <span class="nav-icon"><i class="fas fa-brain"></i></span>
+          <span class="nav-text">Prediction</span>
+        </a>
+        <a class="nav-item" data-page="budget" id="nav-budget">
+          <span class="nav-icon"><i class="fas fa-wallet"></i></span>
+          <span class="nav-text">Budget</span>
+        </a>
+        <a class="nav-item" data-page="insights" id="nav-insights">
+          <span class="nav-icon"><i class="fas fa-lightbulb"></i></span>
+          <span class="nav-text">Insights</span>
+          <span class="nav-badge" id="insightsBadge"></span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-label">Tools</span>
+        <a class="nav-item" data-page="urlsafety" id="nav-urlsafety">
+          <span class="nav-icon"><i class="fas fa-shield-alt"></i></span>
+          <span class="nav-text">URL Safety</span>
+        </a>
+        <a class="nav-item" data-page="settings" id="nav-settings">
+          <span class="nav-icon"><i class="fas fa-cog"></i></span>
+          <span class="nav-text">Settings</span>
+        </a>
+        <a class="nav-item" id="nav-logout" onclick="logoutSession()" style="margin-top: 10px;">
+          <span class="nav-icon" style="color:var(--danger)"><i class="fas fa-sign-out-alt"></i></span>
+          <span class="nav-text" style="color:var(--danger); font-weight: 700;">Log Out</span>
+        </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-ava"><i class="fas fa-user"></i></div>
+        <div class="user-meta">
+          <span class="user-name-sb" id="sidebarName">User</span>
+          <span class="user-role-sb">Financial Manager</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN WRAPPER ===== -->
+  <div class="main-wrapper" id="mainWrapper">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><i class="fas fa-bars"></i></button>
+        <div class="page-breadcrumb">
+          <h1 class="page-title" id="pageTitle">Dashboard</h1>
+          <p class="page-sub" id="pageSub">Welcome back! Here's your financial overview.</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-search">
+          <i class="fas fa-search"></i>
+          <input type="text" id="globalSearch" placeholder="Search expenses…" oninput="handleGlobalSearch(this.value)" />
+        </div>
+        <button class="icon-btn" id="themeToggle" title="Toggle dark mode" onclick="toggleTheme()">
+          <i class="fas fa-moon" id="themeIcon"></i>
+        </button>
+        <button class="icon-btn notif-btn" title="Notifications">
+          <i class="fas fa-bell"></i>
+          <span class="notif-dot" id="notifDot"></span>
+        </button>
+        <div class="topbar-profile">
+          <div class="tb-avatar"><i class="fas fa-user"></i></div>
+          <span class="tb-name" id="topbarName">User</span>
+          <i class="fas fa-chevron-down" style="font-size:11px;color:var(--text-muted)"></i>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT AREA -->
+    <main class="content-area">
+
+      <!-- ==============================
+           PAGE: DASHBOARD
+      =============================== -->
+      <section class="page active" id="page-dashboard">
+        <!-- Stat Cards -->
+        <div class="stats-grid">
+          <div class="stat-card card-blue">
+            <div class="sc-icon"><i class="fas fa-rupee-sign"></i></div>
+            <div class="sc-body">
+              <span class="sc-label">Total This Month</span>
+              <span class="sc-value" id="statTotal">₹0</span>
+              <span class="sc-change" id="statTotalChange"><i class="fas fa-minus"></i> No data yet</span>
+            </div>
+            <div class="sc-watermark"><i class="fas fa-rupee-sign"></i></div>
+          </div>
+          <div class="stat-card card-green">
+            <div class="sc-icon"><i class="fas fa-piggy-bank"></i></div>
+            <div class="sc-body">
+              <span class="sc-label">Remaining Budget</span>
+              <span class="sc-value" id="statBudget">₹0</span>
+              <span class="sc-change" id="statBudgetChange"><i class="fas fa-chart-pie"></i> 0% utilized</span>
+            </div>
+            <div class="sc-watermark"><i class="fas fa-piggy-bank"></i></div>
+          </div>
+          <div class="stat-card card-purple">
+            <div class="sc-icon"><i class="fas fa-fire"></i></div>
+            <div class="sc-body">
+              <span class="sc-label">Top Category</span>
+              <span class="sc-value" id="statTopCat">—</span>
+              <span class="sc-change" id="statTopCatAmt"><i class="fas fa-tag"></i> ₹0 spent</span>
+            </div>
+            <div class="sc-watermark"><i class="fas fa-fire"></i></div>
+          </div>
+          <div class="stat-card card-orange">
+            <div class="sc-icon"><i class="fas fa-chart-line"></i></div>
+            <div class="sc-body">
+              <span class="sc-label">Next Month Forecast</span>
+              <span class="sc-value" id="statForecast">₹0</span>
+              <span class="sc-change" id="statForecastChange"><i class="fas fa-bolt"></i> Based on trends</span>
+            </div>
+            <div class="sc-watermark"><i class="fas fa-chart-line"></i></div>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="two-col-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-chart-bar"></i> Monthly Spending</h3>
+              <select class="mini-select" id="barMonthRange" onchange="updateBarChart()">
+                <option value="6">Last 6 months</option>
+                <option value="3">Last 3 months</option>
+              </select>
+            </div>
+            <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-chart-pie"></i> Category Breakdown</h3>
+              <span class="card-badge" id="catMonthLabel"></span>
+            </div>
+            <div class="chart-wrap chart-wrap-sm"><canvas id="doughnutChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Recent Expenses -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-clock"></i> Recent Expenses</h3>
+            <button class="btn btn-ghost btn-sm" onclick="navigate('expenses')">View All <i class="fas fa-arrow-right"></i></button>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table" id="recentTable">
+              <thead><tr>
+                <th>Description</th><th>Category</th><th>Date</th><th>Amount</th><th>Status</th>
+              </tr></thead>
+              <tbody id="recentBody">
+                <tr><td colspan="5"><div class="empty-state"><i class="fas fa-inbox"></i><p>No expenses yet. Add your first expense!</p></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==============================
+           PAGE: EXPENSES
+      =============================== -->
+      <section class="page" id="page-expenses">
+        <!-- Add Form -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-plus-circle"></i> Add Expense</h3>
+            <button class="btn btn-primary btn-sm" id="toggleFormBtn" onclick="toggleForm()"><i class="fas fa-chevron-down"></i> Expand</button>
+          </div>
+          <div class="collapsible" id="expenseFormWrap">
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Description *</label>
+                <input type="text" id="expDesc" class="form-input" placeholder="e.g. Grocery shopping" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Amount (₹) *</label>
+                <input type="number" id="expAmount" class="form-input" placeholder="0.00" min="0" step="0.01" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Category *</label>
+                <select id="expCategory" class="form-input">
+                  <option value="">Select category</option>
+                  <option value="Food & Dining">🍽️ Food & Dining</option>
+                  <option value="Transportation">🚗 Transportation</option>
+                  <option value="Entertainment">🎮 Entertainment</option>
+                  <option value="Shopping">🛍️ Shopping</option>
+                  <option value="Bills & Utilities">💡 Bills & Utilities</option>
+                  <option value="Healthcare">🏥 Healthcare</option>
+                  <option value="Education">📚 Education</option>
+                  <option value="Others">📦 Others</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Date *</label>
+                <input type="date" id="expDate" class="form-input" />
+              </div>
+              <div class="form-group form-full">
+                <label class="form-label">Notes</label>
+                <input type="text" id="expNotes" class="form-input" placeholder="Optional notes…" />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="addExpense()"><i class="fas fa-plus"></i> Add Expense</button>
+              <button class="btn btn-secondary" onclick="clearExpenseForm()"><i class="fas fa-times"></i> Clear</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="card">
+          <div class="card-header flex-wrap-gap">
+            <h3 class="card-title"><i class="fas fa-list-ul"></i> All Expenses</h3>
+            <div class="table-controls">
+              <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" id="expSearch" placeholder="Search…" oninput="filterExpenses()" />
+              </div>
+              <select class="form-select" id="catFilter" onchange="filterExpenses()">
+                <option value="">All Categories</option>
+                <option value="Food & Dining">Food & Dining</option>
+                <option value="Transportation">Transportation</option>
+                <option value="Entertainment">Entertainment</option>
+                <option value="Shopping">Shopping</option>
+                <option value="Bills & Utilities">Bills & Utilities</option>
+                <option value="Healthcare">Healthcare</option>
+                <option value="Education">Education</option>
+                <option value="Others">Others</option>
+              </select>
+              <select class="form-select" id="monthFilter" onchange="filterExpenses()"></select>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table sortable">
+              <thead><tr>
+                <th class="sort-th" onclick="sortBy('description')">Description <i class="fas fa-sort"></i></th>
+                <th class="sort-th" onclick="sortBy('category')">Category <i class="fas fa-sort"></i></th>
+                <th class="sort-th" onclick="sortBy('date')">Date <i class="fas fa-sort"></i></th>
+                <th class="sort-th" onclick="sortBy('amount')">Amount <i class="fas fa-sort"></i></th>
+                <th>Notes</th>
+                <th>Action</th>
+              </tr></thead>
+              <tbody id="expTableBody"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <span id="expCount" class="count-badge">0 expenses</span>
+            <span id="expTotal" class="total-badge">Total: ₹0</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==============================
+           PAGE: ANALYSIS
+      =============================== -->
+      <section class="page" id="page-analysis">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-chart-line"></i> Daily Spending Trend</h3>
+            <select class="mini-select" id="trendMonthSel" onchange="updateLineChart()"></select>
+          </div>
+          <div class="chart-wrap chart-wrap-tall"><canvas id="lineChart"></canvas></div>
+        </div>
+        <div class="category-grid" id="categoryGrid"></div>
+      </section>
+
+      <!-- ==============================
+           PAGE: PREDICTION
+      =============================== -->
+      <section class="page" id="page-prediction">
+        <div class="prediction-hero">
+          <div class="card pred-hero-card">
+            <div class="pred-icon-ring"><i class="fas fa-brain"></i></div>
+            <h2>AI Spending Forecast</h2>
+            <p class="pred-sub">Based on your historical spending patterns</p>
+            <div class="pred-big-val" id="predBigVal">₹0</div>
+            <p class="pred-note" id="predNote">Add more expenses to improve prediction accuracy.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3 class="card-title"><i class="fas fa-sliders-h"></i> Category Forecasts</h3></div>
+          <div class="pred-cat-grid" id="predCatGrid"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3 class="card-title"><i class="fas fa-chart-area"></i> 3-Month Spending Forecast</h3></div>
+          <div class="chart-wrap chart-wrap-tall"><canvas id="predChart"></canvas></div>
+        </div>
+      </section>
+
+      <!-- ==============================
+           PAGE: BUDGET
+      =============================== -->
+      <section class="page" id="page-budget">
+        <div class="two-col-grid">
+          <div class="card">
+            <div class="card-header"><h3 class="card-title"><i class="fas fa-wallet"></i> Monthly Budget</h3></div>
+            <div class="form-group">
+              <label class="form-label">Total Monthly Budget (₹)</label>
+              <input type="number" id="totalBudgetInp" class="form-input" placeholder="e.g. 30000" />
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="saveTotalBudget()"><i class="fas fa-save"></i> Save Budget</button>
+            </div>
+          </div>
+          <div class="card budget-summary-card">
+            <div class="card-header"><h3 class="card-title"><i class="fas fa-tachometer-alt"></i> Budget Health</h3></div>
+            <div class="budget-health" id="budgetHealth">
+              <div class="health-ring-wrap">
+                <svg class="health-ring" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="50" class="ring-bg"/>
+                  <circle cx="60" cy="60" r="50" class="ring-fill" id="healthRingFill" stroke-dasharray="0 314"/>
+                </svg>
+                <div class="health-ring-label">
+                  <span id="healthPct">0%</span>
+                  <small>used</small>
+                </div>
+              </div>
+              <div class="health-meta">
+                <div class="hm-row"><span>Total Budget</span><strong id="hmTotal">₹0</strong></div>
+                <div class="hm-row"><span>Spent</span><strong id="hmSpent" class="danger-text">₹0</strong></div>
+                <div class="hm-row"><span>Remaining</span><strong id="hmRemain" class="success-text">₹0</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3 class="card-title"><i class="fas fa-sliders-h"></i> Category Budgets</h3></div>
+          <div class="cat-budget-list" id="catBudgetList"></div>
+          <div class="form-actions">
+            <button class="btn btn-primary" onclick="saveCatBudgets()"><i class="fas fa-save"></i> Save Category Budgets</button>
+          </div>
+        </div>
+
+        <div class="budget-bars-grid" id="budgetBarsGrid"></div>
+      </section>
+
+      <!-- ==============================
+           PAGE: INSIGHTS
+      =============================== -->
+      <section class="page" id="page-insights">
+        <div class="insight-top-row">
+          <div class="card insight-score-card">
+            <div class="card-header"><h3 class="card-title"><i class="fas fa-star"></i> Financial Health Score</h3></div>
+            <div class="score-display">
+              <div class="score-circle" id="scoreCircle">
+                <span class="score-num" id="scoreNum">--</span>
+                <span class="score-denom">/100</span>
+              </div>
+              <div class="score-info">
+                <p class="score-label" id="scoreLabel">Calculating…</p>
+                <p class="score-desc" id="scoreDesc">Add expenses and set a budget to see your score.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="insights-grid" id="insightsGrid"></div>
+      </section>
+
+      <!-- ==============================
+           PAGE: URL SAFETY
+      =============================== -->
+      <section class="page" id="page-urlsafety">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title"><i class="fas fa-shield-alt"></i> URL Safety Checker</h3></div>
+          <p class="card-desc">Verify financial websites and payment links before entering your details.</p>
+          <div class="url-form">
+            <div class="url-input-row">
+              <span class="url-prefix"><i class="fas fa-link"></i></span>
+              <input type="text" id="urlInput" class="form-input url-inp" placeholder="https://example.com/payment…" />
+              <button class="btn btn-primary" onclick="checkURL()"><i class="fas fa-search"></i> Check</button>
+            </div>
+          </div>
+          <div id="urlResultBox" class="url-result hidden"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3 class="card-title"><i class="fas fa-history"></i> Check History</h3></div>
+          <div id="urlHistory"><div class="empty-state"><i class="fas fa-shield-alt"></i><p>No URLs checked yet</p></div></div>
+        </div>
+      </section>
+
+      <!-- ==============================
+           PAGE: SETTINGS
+      =============================== -->
+      <section class="page" id="page-settings">
+        <div class="settings-grid">
+          <div class="card">
+            <div class="card-header"><h3 class="card-title"><i class="fas fa-user-cog"></i> Profile</h3></div>
+            <div class="form-group">
+              <label class="form-label">Your Name</label>
+              <input type="text" id="settingsName" class="form-input" placeholder="Enter your name" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Default Currency</label>
+              <select id="settingsCurrency" class="form-input">
+                <option value="₹">₹ Indian Rupee (INR)</option>
+                <option value="$">$ US Dollar (USD)</option>
+                <option value="€">€ Euro (EUR)</option>
+                <option value="£">£ British Pound (GBP)</option>
+              </select>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="saveSettings()"><i class="fas fa-save"></i> Save Profile</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3 class="card-title"><i class="fas fa-palette"></i> Appearance</h3></div>
+            <div class="toggle-row">
+              <div>
+                <strong>Dark Mode</strong>
+                <p class="toggle-desc">Switch to a comfortable dark theme</p>
+              </div>
+              <label class="toggle-sw">
+                <input type="checkbox" id="darkModeChk" onchange="toggleTheme()" />
+                <span class="sw-track"><span class="sw-thumb"></span></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3 class="card-title"><i class="fas fa-database"></i> Data Management</h3></div>
+            <div class="data-btn-row" style="margin-bottom: 20px; display:flex; gap:12px;">
+              <input type="file" id="excelUpload" accept=".xlsx, .xls, .csv" style="display:none;" onchange="handleExcelUpload(event)">
+              <button class="btn btn-primary" onclick="document.getElementById('excelUpload').click()"><i class="fas fa-file-excel"></i> Import Excel</button>
+              <button class="btn btn-secondary" onclick="exportData()"><i class="fas fa-download"></i> Export JSON</button>
+            </div>
+            <hr style="border:0; border-top:1px solid var(--border); margin:16px 0;">
+            <div class="data-btn-row">
+              <button class="btn btn-danger" onclick="confirmReset()"><i class="fas fa-trash-alt"></i> Reset All Data</button>
+            </div>
+            <p class="danger-note" style="margin-top:12px;"><i class="fas fa-exclamation-triangle"></i> Resetting will permanently delete all your expenses.</p>
+          </div>
+
+          <div class="card about-card">
+            <div class="about-logo-row">
+              <div class="about-icon"><i class="fas fa-chart-line"></i></div>
+              <div>
+                <h2 class="about-name">FortuneFlow</h2>
+                <p class="about-version">Version 2.0 · Premium Edition</p>
+              </div>
+            </div>
+            <p class="about-desc">Fortune Flow Guide is an intelligent financial assistant with AI-powered insights, budget tracking, and predictive analytics designed to help you take control of your finances.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ===== FLOATING WIZARD BUTTON ===== -->
+<button class="wizard-fab" id="wizardFab" onclick="openWizard()" title="Quick Add Expense">
+  <span class="fab-ring"></span>
+  <i class="fas fa-plus fab-icon"></i>
+  <span class="fab-label">Add Expense</span>
+</button>
+
+<!-- ===== EXPENSE WIZARD MODAL ===== -->
+<div class="wizard-overlay hidden" id="wizardOverlay">
+  <div class="wizard-modal" id="wizardModal">
+
+    <!-- Progress bar + close -->
+    <div class="wz-top">
+      <div class="wz-step-info">
+        <span class="wz-step-label" id="wzStepLabel">Step 1 of 5</span>
+        <div class="wz-dots" id="wzDots"></div>
+      </div>
+      <button class="wz-close" onclick="closeWizard()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="wz-progress-track"><div class="wz-progress-fill" id="wzProgressFill"></div></div>
+
+    <!-- Bot avatar + speech bubble -->
+    <div class="wz-bot-row">
+      <div class="wz-bot-avatar"><i class="fas fa-robot"></i></div>
+      <div class="wz-bubble" id="wzBubble">Hi! I'm here to help you log an expense 🎯</div>
+    </div>
+
+    <!-- Step question -->
+    <div class="wz-question" id="wzQuestion">What did you spend on?</div>
+
+    <!-- Step content area -->
+    <div class="wz-body" id="wzBody"></div>
+
+    <!-- Nav Buttons -->
+    <div class="wz-footer">
+      <button class="btn btn-secondary wz-back" id="wzBack" onclick="wizardBack()">
+        <i class="fas fa-chevron-left"></i> Back
+      </button>
+      <button class="btn btn-primary wz-next" id="wzNext" onclick="wizardNext()">
+        Next <i class="fas fa-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-stack" id="toastStack"></div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay hidden" id="modalOverlay">
+  <div class="modal-box">
+    <div class="modal-icon warning"><i class="fas fa-exclamation-triangle"></i></div>
+    <h3 id="modalTitle">Confirm</h3>
+    <p id="modalMsg">Are you sure?</p>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="modalOkBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ONBOARDING OVERLAY ===== -->
+<div class="ob-overlay hidden" id="obOverlay">
+  <div class="ob-bg">
+    <div class="ob-orb ob-orb1"></div>
+    <div class="ob-orb ob-orb2"></div>
+    <div class="ob-orb ob-orb3"></div>
+  </div>
+  <div class="ob-card" id="obCard"></div>
+</div>
+
+<!-- ===== CA ADVISOR FLOAT BUTTON ===== -->
+<button class="ca-fab-btn" id="caFabBtn" onclick="toggleCAPanel()" title="Ask Aria – Your CA">
+  <span class="ca-fab-pulse"></span>
+  <i class="fas fa-robot"></i>
+  <span class="ca-fab-txt">Ask CA</span>
+  <span class="ca-fab-badge hidden" id="caFabBadge">!</span>
+</button>
+
+<!-- ===== CA ADVISOR PANEL ===== -->
+<div class="ca-panel hidden" id="caAdvisorPanel">
+  <div class="ca-panel-hdr">
+    <div class="ca-panel-av-wrap">
+      <div class="ca-panel-av"><i class="fas fa-robot"></i></div>
+      <span class="ca-online-dot"></span>
+    </div>
+    <div>
+      <div class="ca-panel-name">Aria</div>
+      <div class="ca-panel-role">Personal CA &nbsp;·&nbsp; <span style="color:#10B981">● Online</span></div>
+    </div>
+    <button class="ca-panel-x" onclick="toggleCAPanel()"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="ca-panel-body" id="caPanelBody" style="flex:1; display:flex; flex-direction:column; padding:0;">
+    <div id="caInnerContent" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px;">
+      <div class="ca-loading"><i class="fas fa-spinner fa-spin"></i></div>
+    </div>
+  </div>
+  <div class="ca-chat-footer" style="padding:12px 14px; border-top:1px solid var(--border); background:var(--surface); display:flex; gap:8px;">
+    <input type="text" id="caChatInput" class="wz-main-input" placeholder="Ask Aria anything..." style="flex:1; border-radius:var(--r-full); padding:10px 14px; font-size:12.5px; border-color:var(--border);" onkeypress="if(event.key==='Enter') sendAriaMsg()">
+    <button class="btn btn-primary" style="border-radius:50%; width:38px; height:38px; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0" onclick="sendAriaMsg()">
+      <i class="fas fa-paper-plane" style="font-size:13px"></i>
+    </button>
+  </div>
+</div>
+
+<!-- ===== AUTH / LOGIN OVERLAY ===== -->
+<div class="ob-overlay hidden" id="authOverlay" style="z-index: 10000; background: var(--bg);">
+  <div class="ob-bg">
+    <div class="ob-orb ob-orb1"></div>
+    <div class="ob-orb ob-orb2"></div>
+    <div class="ob-orb ob-orb3"></div>
+  </div>
+  <div class="ob-card" style="max-width:380px; padding: 40px 32px; text-align:center; animation: fadeIn .3s ease">
+    <div style="margin-bottom:20px"><div style="display:inline-flex; width:64px; height:64px; border-radius:20px; align-items:center; justify-content:center; color:#fff; font-size:32px; background: linear-gradient(135deg,#7C3AED,#EC4899); box-shadow: 0 12px 32px rgba(139,92,246,0.5);"><i class="fas fa-compass"></i></div></div>
+    <h2 style="font-family:'Outfit',sans-serif; color:var(--text1); font-weight:800; font-size:24px; margin-bottom:8px">Welcome Back</h2>
+    <p style="color:var(--text2); font-size:13px; margin-bottom:28px">Your financial assistant is locked.</p>
+    <div class="wz-input-wrap" style="margin-bottom:24px">
+      <input type="password" id="authPasscode" class="wz-main-input" placeholder="Enter any passcode" style="text-align:center; letter-spacing: 2px" onkeypress="if(event.key==='Enter') loginSession()">
+    </div>
+    <button class="btn btn-primary ob-btn" onclick="loginSession()"><i class="fas fa-unlock" style="margin-right:6px"></i> Unlock Dashboard</button>
+  </div>
+</div>
+
+<!-- ===== CA SMART NOTIFICATION ===== -->
+<div class="ca-notif hidden" id="caNotif">
+  <div class="ca-notif-av"><i class="fas fa-robot"></i></div>
+  <div class="ca-notif-content">
+    <div class="ca-notif-from">Aria · Your CA</div>
+    <div class="ca-notif-msg" id="caNotifMsg"></div>
+  </div>
+  <button class="ca-notif-x" onclick="dismissCaNotif()"><i class="fas fa-times"></i></button>
+</div>
+
+<script src="app.js"></script>
+<script src="onboarding.js"></script>
+</body>
+</html>
+

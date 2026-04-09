@@ -191,7 +191,13 @@ function renderWizardStep() {
     setTimeout(()=>document.getElementById('wzInpDesc').focus(), 100);
   } else if (wzStep === 2) {
     q.textContent = "How much did it cost?";
-    b.innerHTML = `<input type="number" id="wzInpAmt" class="wz-main-input" placeholder="0.00" value="${wzData.amount}">`;
+    b.innerHTML = `<input type="number" id="wzInpAmt" class="wz-main-input" placeholder="0.00" value="${wzData.amount}">
+    <div class="quick-picks" style="margin-top:12px;">
+      <div class="qp-chip" onclick="document.getElementById('wzInpAmt').value='150'">150</div>
+      <div class="qp-chip" onclick="document.getElementById('wzInpAmt').value='500'">500</div>
+      <div class="qp-chip" onclick="document.getElementById('wzInpAmt').value='1500'">1500</div>
+      <div class="qp-chip" onclick="document.getElementById('wzInpAmt').focus()">Custom</div>
+    </div>`;
     btnN.innerHTML = `Next <i class="fas fa-chevron-right"></i>`;
     setTimeout(()=>document.getElementById('wzInpAmt').focus(), 100);
   } else if (wzStep === 3) {

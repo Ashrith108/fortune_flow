@@ -16,10 +16,13 @@ const CATS = [
 let expenses = JSON.parse(localStorage.getItem('ff_expenses')) || [];
 let totalBudget = Number(localStorage.getItem('ff_total_budget')) || 0;
 let catBudgets = JSON.parse(localStorage.getItem('ff_cat_budgets')) || {};
-let userProfile = JSON.parse(localStorage.getItem('ff_profile')) || { name: 'User', currency: '₹' };
+let userProfile = JSON.parse(localStorage.getItem('ff_profile')) || { name: 'User', currency: '₹', salary: 0, saveGoal: 0, setupComplete: false };
 
 function fmt(n) {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: userProfile.currency === '₹' ? 'INR' : 'USD' }).format(n);
+  const map = { '₹': 'INR', '$': 'USD', '€': 'EUR', '£': 'GBP' };
+  const code = map[userProfile.currency] || 'INR';
+  const locale = code === 'INR' ? 'en-IN' : 'en-US';
+  return new Intl.NumberFormat(locale, { style: 'currency', currency: code }).format(n);
 }
 function monthKey(d) { return d.substring(0,7); }
 function currentMonthKey() { return new Date().toISOString().substring(0,7); }
@@ -52,11 +55,22 @@ function initApp() {
   document.getElementById('collapseBtn').addEventListener('click', () => {
     document.querySelector('.app-wrapper').classList.toggle('collapsed');
   });
+  
+  // Close the profile dropdown if clicked outside
+  window.addEventListener('click', () => {
+    const pd = document.getElementById('profileDropdown');
+    if (pd && !pd.classList.contains('hidden')) pd.classList.add('hidden');
+  });
 
   renderDashboard();
   renderExpensesForm();
   updateInsightsBadge();
   initScore();
+}
+
+function toggleProfileDropdown() {
+  const pd = document.getElementById('profileDropdown');
+  if (pd) pd.classList.toggle('hidden');
 }
 
 // ==== NAVIGATION ====
@@ -87,7 +101,7 @@ function navigate(pageId) {
   if (pageId === 'analysis') renderAnalysis();
   if (pageId === 'prediction') renderPrediction();
   if (pageId === 'budget') renderBudget();
-  if (pageId === 'insights') renderInsights();
+  if (pageId === 'insights') { renderInsights(); renderScore(); }
 }
 
 // ==== UTILS & TOASTS ====
@@ -108,14 +122,17 @@ function showToast(msg, type='info') {
 // Theme
 function toggleTheme() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const chk = document.getElementById('darkModeChk');
   if (isDark) {
     document.documentElement.removeAttribute('data-theme');
     localStorage.setItem('ff_theme', 'light');
     document.getElementById('themeIcon').className = 'fas fa-moon';
+    if (chk) chk.checked = false;
   } else {
     document.documentElement.setAttribute('data-theme', 'dark');
     localStorage.setItem('ff_theme', 'dark');
     document.getElementById('themeIcon').className = 'fas fa-sun';
+    if (chk) chk.checked = true;
   }
 }
 
@@ -211,7 +228,9 @@ function checkBudgetWarning(catName, amt) {
   if (totalBudget > 0) {
     const total = expenses.filter(e => monthKey(e.date) === currentMonthKey()).reduce((s,e)=>s+Number(e.amount),0);
     if (total > totalBudget) {
-      setTimeout(() => alert(`Warning: You have exceeded your overall budget of ${fmt(totalBudget)}!`), 500);
+      setTimeout(() => showToast(`⚠️ Budget exceeded! You are ${fmt(total - totalBudget)} over your ${fmt(totalBudget)} limit.`, 'warning'), 500);
+    } else if (total > totalBudget * 0.85) {
+      setTimeout(() => showToast(`Budget alert: You have used ${Math.round(total/totalBudget*100)}% of your monthly budget.`, 'warning'), 500);
     }
   }
 }
@@ -271,10 +290,10 @@ function renderExpenseTable(list) {
 function renderExpenses() { populateMonthFilter(); filterExpenses(); }
 
 function delExpense(id) {
-  if(confirm("Delete this expense?")) {
+  openModal('Delete Expense', 'Are you sure you want to delete this expense? This cannot be undone.', () => {
     expenses = expenses.filter(e => e.id !== id);
-    saveLocal(); showToast('Deleted.', 'success'); filterExpenses(); renderDashboard();
-  }
+    saveLocal(); showToast('Expense deleted.', 'success'); filterExpenses(); renderDashboard();
+  });
 }
 
 // ==== ANALYSIS ====
@@ -483,7 +502,7 @@ function renderBudget() {
   const spent   = expenses.filter(e => monthKey(e.date) === cmk).reduce((s,e) => s + Number(e.amount), 0);
   const remain  = totalBudget - spent;
   const pct     = totalBudget > 0 ? Math.min(100, Math.round(spent/totalBudget*100)) : 0;
-  const circ    = 2 * Math.PI * 50;
+  const circ    = 2 * Math.PI * 50; // ~314.16
 
   document.getElementById('healthPct').textContent = pct + '%';
   document.getElementById('hmTotal').textContent   = fmt(totalBudget);
@@ -491,14 +510,17 @@ function renderBudget() {
   document.getElementById('hmRemain').textContent  = fmt(Math.max(0, remain));
 
   const ring = document.getElementById('healthRingFill');
-  ring.style.strokeDashoffset = circ - (pct/100)*circ;
+  // Fix: set dasharray correctly so stroke is visible, then offset controls fill amount
+  ring.setAttribute('stroke-dasharray', `${circ} ${circ}`);
+  ring.style.strokeDashoffset = circ - (pct / 100) * circ;
   ring.style.stroke = pct > 90 ? 'var(--danger)' : pct > 75 ? 'var(--warning)' : 'var(--success)';
+  ring.style.transition = 'stroke-dashoffset 0.6s ease, stroke 0.3s ease';
 
   const list = document.getElementById('catBudgetList');
   list.innerHTML = CATS.map(c => `
-    <div class="form-group" style="flex-direction:row;align-items:center;justify-content:space-between">
-      <label class="form-label" style="width:140px"><i class="${c.icon}"></i> ${c.name}</label>
-      <input type="number" class="form-input" style="flex:1" id="cb_${c.name}" value="${catBudgets[c.name]||''}" placeholder="Limit..." />
+    <div class="form-group" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px">
+      <label class="form-label" style="width:160px;flex-shrink:0">${c.icon} ${c.name}</label>
+      <input type="number" class="form-input" style="flex:1" id="cb_${c.name}" value="${catBudgets[c.name]||""}" placeholder="Budget limit..." />
     </div>
   `).join('');
 }
@@ -523,20 +545,40 @@ function saveCatBudgets() {
 }
 
 // ==== INSIGHTS ====
-function initScore() {
+function renderScore() {
   let score = 50;
   if (expenses.length > 5) score += 10;
   if (totalBudget > 0) {
-    const spent = expenses.filter(e => monthKey(e.date) === currentMonthKey()).reduce((s,e) => s+e.amount, 0);
+    const spent = expenses.filter(e => monthKey(e.date) === currentMonthKey()).reduce((s,e) => s + Number(e.amount), 0);
     if (spent < totalBudget) score += 20;
     else score -= 20;
   }
   const fc = forecast();
   if (fc > 0 && totalBudget > fc) score += 20;
+  if (expenses.length > 20) score += 5;
+  const finalScore = Math.min(100, Math.max(0, score));
 
-  document.getElementById('scoreNum').textContent = Math.min(100, Math.max(0, score));
-  document.getElementById('scoreLabel').textContent = score > 80 ? 'Excellent' : score > 50 ? 'Good' : 'Needs Work';
+  const circle = document.getElementById('scoreCircle');
+  const num = document.getElementById('scoreNum');
+  const label = document.getElementById('scoreLabel');
+  const desc = document.getElementById('scoreDesc');
+  if (!num) return;
+  num.textContent = finalScore;
+  if (finalScore >= 80) {
+    label.textContent = 'Excellent 🎉'; circle.style.background = 'linear-gradient(135deg, #10B981, #059669)';
+    desc.textContent = 'Great job! You are managing your finances exceptionally well.';
+  } else if (finalScore >= 60) {
+    label.textContent = 'Good 👍'; circle.style.background = 'linear-gradient(135deg, #3B82F6, #2563EB)';
+    desc.textContent = 'Your finances are in decent shape. Keep tracking to improve!';
+  } else if (finalScore >= 40) {
+    label.textContent = 'Fair ⚠️'; circle.style.background = 'linear-gradient(135deg, #F59E0B, #D97706)';
+    desc.textContent = 'There is room for improvement. Set a budget and track expenses regularly.';
+  } else {
+    label.textContent = 'Needs Work 🔴'; circle.style.background = 'linear-gradient(135deg, #EF4444, #DC2626)';
+    desc.textContent = 'Your spending needs attention. Try setting a budget and checking insights.';
+  }
 }
+function initScore() { renderScore(); }
 
 function renderInsights() {
   const grid = document.getElementById('insightsGrid');
@@ -621,12 +663,31 @@ function exportData() {
 }
 
 function confirmReset() {
-  if (confirm("WARNING: This will permanently delete all your tracking data, expenses, and budgets! Proceed?")) {
-    expenses = []; totalBudget = 0; catBudgets = {};
-    localStorage.removeItem('ff_expenses'); localStorage.removeItem('ff_total_budget'); localStorage.removeItem('ff_cat_budgets');
-    showToast("Application data reset successfully.", "success");
-    setTimeout(() => window.location.reload(), 1500);
-  }
+  openModal(
+    '⚠️ Reset All Data',
+    'This will permanently delete ALL expenses, budgets, and settings. This cannot be undone!',
+    () => {
+      expenses = []; totalBudget = 0; catBudgets = {};
+      localStorage.removeItem('ff_expenses');
+      localStorage.removeItem('ff_total_budget');
+      localStorage.removeItem('ff_cat_budgets');
+      localStorage.removeItem('ff_profile');
+      showToast('All data has been reset.', 'success');
+      setTimeout(() => window.location.reload(), 1500);
+    }
+  );
+}
+
+function openModal(title, msg, onConfirm) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalMsg').textContent = msg;
+  const okBtn = document.getElementById('modalOkBtn');
+  okBtn.onclick = () => { closeModal(); onConfirm(); };
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.add('hidden');
 }
 
 // ==== SETTINGS ====
@@ -660,7 +721,7 @@ function checkURL() {
     
     if (inp.includes('bank') || inp.includes('paypal') || inp.includes('hdfc')) {
       box.className = 'url-result url-safe';
-      box.innerHTML = `<h4><i class="fas fa-check-shield"></i> Safe Connection</h4><p>This appears to be a verified financial URL.</p>`;
+      box.innerHTML = `<h4><i class="fas fa-shield-alt"></i> Safe Connection</h4><p>This appears to be a verified financial URL.</p>`;
     } else {
       box.className = 'url-result url-warn';
       box.innerHTML = `<h4><i class="fas fa-exclamation-triangle"></i> Caution Advised</h4><p>This is an unknown URL. Please verify the sender carefully.</p>`;
@@ -668,10 +729,38 @@ function checkURL() {
   }, 1000);
 }
 
-// Dummy badge toggle
 function updateInsightsBadge() {
   const badge = document.getElementById('insightsBadge');
-  if (badge) badge.textContent = '2';
+  if (!badge) return;
+  let count = 0;
+  const cmk = currentMonthKey();
+  const spent = expenses.filter(e => monthKey(e.date) === cmk).reduce((s, e) => s + Number(e.amount), 0);
+  if (totalBudget > 0 && spent > totalBudget) count++;
+  if (Object.entries(getCatTotals(cmk)).some(([, v]) => totalBudget > 0 && v > totalBudget * 0.4)) count++;
+  if (count > 0) { badge.textContent = count; badge.style.display = 'inline-flex'; }
+  else { badge.textContent = ''; badge.style.display = 'none'; }
+}
+
+// ==== SORT ====
+let sortField = '', sortAsc = true;
+function sortBy(field) {
+  if (sortField === field) sortAsc = !sortAsc;
+  else { sortField = field; sortAsc = true; }
+  const s = document.getElementById('expSearch').value.toLowerCase();
+  const c = document.getElementById('catFilter').value;
+  const m = document.getElementById('monthFilter').value;
+  let f = expenses.filter(e =>
+    (!s || e.description.toLowerCase().includes(s)) &&
+    (!c || e.category === c) &&
+    (!m || monthKey(e.date) === m)
+  );
+  f.sort((a, b) => {
+    let av = a[field], bv = b[field];
+    if (field === 'amount') { av = Number(av); bv = Number(bv); }
+    if (sortAsc) return av > bv ? 1 : -1;
+    return av < bv ? 1 : -1;
+  });
+  renderExpenseTable(f);
 }
 
 function handleGlobalSearch(q) {
@@ -683,19 +772,94 @@ function handleGlobalSearch(q) {
 }
 
 function logoutSession() {
-  localStorage.removeItem('ff_auth_unlocked');
+  // If user wants to log out, we'll reset intro state
+  userProfile.setupComplete = false;
+  localStorage.setItem('ff_profile', JSON.stringify(userProfile));
   window.location.reload();
 }
-function loginSession() {
-  document.getElementById('authOverlay').classList.add('hidden');
-  localStorage.setItem('ff_auth_unlocked', 'true');
-  showToast('Dashboard unlocked!', 'success');
+
+// ==== ONBOARDING WIZARD ====
+let obData = { name: '', currency: '₹', salary: 0, saveGoal: 0 };
+
+function setObCurrency(curr, el) {
+  obData.currency = curr;
+  document.querySelectorAll('#obCurrencyPicks .qp-chip').forEach(c => c.classList.remove('selected'));
+  if (el) el.classList.add('selected');
 }
 
-// Ensure login works dynamically
+function updateObDots(step) {
+  const dots = document.querySelectorAll('#obDots .wz-dot');
+  dots.forEach((d, i) => {
+    d.classList.toggle('active', i === step - 1);
+  });
+}
+
+function nextObStep(current) {
+  if (current === 1) {
+    const n = document.getElementById('obInpName').value.trim();
+    if (!n) { showToast('Please enter your name.', 'error'); return; }
+    obData.name = n;
+    document.getElementById('obStep1').classList.add('hidden');
+    document.getElementById('obStep2').classList.remove('hidden');
+    updateObDots(2);
+    setTimeout(() => document.getElementById('obInpSalary').focus(), 100);
+  } else if (current === 2) {
+    const s = document.getElementById('obInpSalary').value.trim();
+    if (!s || isNaN(s) || Number(s) <= 0) { showToast('Enter a valid monthly income.', 'error'); return; }
+    obData.salary = Number(s);
+    document.getElementById('obStep2').classList.add('hidden');
+    document.getElementById('obStep3').classList.remove('hidden');
+    updateObDots(3);
+    document.getElementById('obInpSaveGoal').placeholder = `e.g. ${Math.round(obData.salary * 0.2)}`;
+    setTimeout(() => document.getElementById('obInpSaveGoal').focus(), 100);
+  }
+}
+
+function prevObStep(current) {
+  document.getElementById(`obStep${current}`).classList.add('hidden');
+  document.getElementById(`obStep${current-1}`).classList.remove('hidden');
+  updateObDots(current-1);
+}
+
+function fillSaveGoal(multiplier) {
+  const sal = Number(document.getElementById('obInpSalary').value) || obData.salary || 0;
+  if(sal > 0) {
+    document.getElementById('obInpSaveGoal').value = Math.round(sal * multiplier);
+  } else {
+    showToast('Please enter your salary first to calculate percentages.', 'info');
+  }
+}
+
+function finishOnboarding() {
+  const sg = document.getElementById('obInpSaveGoal').value.trim();
+  if (!sg || isNaN(sg) || Number(sg) < 0) { showToast('Enter a valid savings goal.', 'error'); return; }
+  obData.saveGoal = Number(sg);
+  
+  // Save to profile
+  userProfile.name = obData.name;
+  userProfile.currency = obData.currency;
+  userProfile.salary = obData.salary;
+  userProfile.saveGoal = obData.saveGoal;
+  userProfile.setupComplete = true;
+  localStorage.setItem('ff_profile', JSON.stringify(userProfile));
+
+  // Auto-set total budget if it doesn't exist
+  if (totalBudget === 0) {
+    totalBudget = Math.round(userProfile.salary * 0.8);
+    localStorage.setItem('ff_total_budget', totalBudget);
+  }
+
+  document.getElementById('initialOnboardingOverlay').classList.add('hidden');
+  showToast(`Welcome, ${userProfile.name}! Setup complete.`, 'success');
+  initApp();
+  renderDashboard();
+}
+
 window.addEventListener('DOMContentLoaded', () => {
-  if (localStorage.getItem('ff_auth_unlocked') !== 'true') {
-     document.getElementById('authOverlay').classList.remove('hidden');
+  if (!userProfile.setupComplete) {
+     document.getElementById('initialOnboardingOverlay').classList.remove('hidden');
+     // Pre-fill if exists
+     if(userProfile.name !== 'User') document.getElementById('obInpName').value = userProfile.name;
   }
   initApp();
 });

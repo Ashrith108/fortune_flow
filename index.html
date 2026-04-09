@@ -118,10 +118,21 @@
           <i class="fas fa-bell"></i>
           <span class="notif-dot" id="notifDot"></span>
         </button>
-        <div class="topbar-profile">
+        <div class="topbar-profile" onclick="toggleProfileDropdown()">
           <div class="tb-avatar"><i class="fas fa-user"></i></div>
           <span class="tb-name" id="topbarName">User</span>
           <i class="fas fa-chevron-down" style="font-size:11px;color:var(--text-muted)"></i>
+          <!-- Profile Dropdown -->
+          <div class="profile-dropdown hidden" id="profileDropdown" onclick="event.stopPropagation()">
+            <div class="pd-header">
+              <strong id="pdName">User</strong>
+              <span id="pdRole">Financial Manager</span>
+            </div>
+            <div class="pd-body">
+              <a href="#" onclick="navigate('settings'); toggleProfileDropdown();"><i class="fas fa-cog"></i> Settings</a>
+              <a href="#" onclick="confirmReset(); toggleProfileDropdown();" class="danger-link"><i class="fas fa-trash-alt"></i> Reset Data</a>
+            </div>
+          </div>
         </div>
       </div>
     </header>
@@ -223,7 +234,7 @@
             <h3 class="card-title"><i class="fas fa-plus-circle"></i> Add Expense</h3>
             <button class="btn btn-primary btn-sm" id="toggleFormBtn" onclick="toggleForm()"><i class="fas fa-chevron-down"></i> Expand</button>
           </div>
-          <div class="collapsible" id="expenseFormWrap">
+          <div class="collapsible hidden" id="expenseFormWrap">
             <div class="form-grid">
               <div class="form-group">
                 <label class="form-label">Description *</label>
@@ -529,7 +540,7 @@
     <!-- Progress bar + close -->
     <div class="wz-top">
       <div class="wz-step-info">
-        <span class="wz-step-label" id="wzStepLabel">Step 1 of 5</span>
+        <span class="wz-step-label" id="wzStepLabel">Step 1 of 4</span>
         <div class="wz-dots" id="wzDots"></div>
       </div>
       <button class="wz-close" onclick="closeWizard()"><i class="fas fa-times"></i></button>
@@ -576,65 +587,79 @@
   </div>
 </div>
 
-<!-- ===== ONBOARDING OVERLAY ===== -->
-<div class="ob-overlay hidden" id="obOverlay">
+<!-- ===== ONBOARDING WIZARD OVERLAY ===== -->
+<div class="ob-overlay hidden" id="initialOnboardingOverlay" style="z-index: 10000; background: var(--bg);">
   <div class="ob-bg">
     <div class="ob-orb ob-orb1"></div>
     <div class="ob-orb ob-orb2"></div>
     <div class="ob-orb ob-orb3"></div>
   </div>
-  <div class="ob-card" id="obCard"></div>
-</div>
+  <div class="ob-card" style="max-width:440px; padding: 40px 36px; animation: fadeIn .4s ease">
+    <div style="text-align:center; margin-bottom: 24px;">
+      <div style="display:inline-flex; width:64px; height:64px; border-radius:20px; align-items:center; justify-content:center; color:#fff; font-size:32px; background: linear-gradient(135deg,#7C3AED,#EC4899); box-shadow: 0 12px 32px rgba(139,92,246,0.5);"><i class="fas fa-compass"></i></div>
+      <h2 style="font-family:'Outfit',sans-serif; color:var(--text1); font-weight:800; font-size:26px; margin-top:16px; margin-bottom:6px">Welcome to FortuneFlow</h2>
+      <p style="color:var(--text2); font-size:14px; margin-bottom:8px">Let's set up your intelligent financial assistant.</p>
+    </div>
 
-<!-- ===== CA ADVISOR FLOAT BUTTON ===== -->
-<button class="ca-fab-btn" id="caFabBtn" onclick="toggleCAPanel()" title="Ask Aria – Your CA">
-  <span class="ca-fab-pulse"></span>
-  <i class="fas fa-robot"></i>
-  <span class="ca-fab-txt">Ask CA</span>
-  <span class="ca-fab-badge hidden" id="caFabBadge">!</span>
-</button>
+    <!-- Step 1: Basics -->
+    <div id="obStep1">
+      <div class="form-group">
+        <label class="form-label">What should I call you?</label>
+        <input type="text" id="obInpName" class="wz-main-input" placeholder="e.g. Alex" />
+      </div>
+      <div class="form-group" style="margin-top: 16px;">
+        <label class="form-label">Select your currency</label>
+        <div class="quick-picks" id="obCurrencyPicks">
+          <div class="qp-chip selected" onclick="setObCurrency('₹', this)">₹ INR</div>
+          <div class="qp-chip" onclick="setObCurrency('$', this)">$ USD</div>
+          <div class="qp-chip" onclick="setObCurrency('€', this)">€ EUR</div>
+          <div class="qp-chip" onclick="setObCurrency('£', this)">£ GBP</div>
+        </div>
+      </div>
+      <button class="btn btn-primary ob-btn" style="width:100%; margin-top: 24px;" onclick="nextObStep(1)">Continue <i class="fas fa-arrow-right" style="margin-left:6px"></i></button>
+    </div>
 
-<!-- ===== CA ADVISOR PANEL ===== -->
-<div class="ca-panel hidden" id="caAdvisorPanel">
-  <div class="ca-panel-hdr">
-    <div class="ca-panel-av-wrap">
-      <div class="ca-panel-av"><i class="fas fa-robot"></i></div>
-      <span class="ca-online-dot"></span>
+    <!-- Step 2: Income -->
+    <div id="obStep2" class="hidden">
+      <div class="form-group">
+        <label class="form-label">What is your monthly income/salary?</label>
+        <input type="number" id="obInpSalary" class="wz-main-input" placeholder="e.g. 50000" />
+        <div class="quick-picks" style="margin-top:12px;">
+          <div class="qp-chip" onclick="document.getElementById('obInpSalary').value='25000'">25,000</div>
+          <div class="qp-chip" onclick="document.getElementById('obInpSalary').value='50000'">50,000</div>
+          <div class="qp-chip" onclick="document.getElementById('obInpSalary').value='100000'">1,00,000</div>
+          <div class="qp-chip" onclick="document.getElementById('obInpSalary').focus()">Custom</div>
+        </div>
+        <p style="font-size:12px; color:var(--text3); margin-top:12px;"><i class="fas fa-info-circle"></i> This helps Aria create automated budget limits for you.</p>
+      </div>
+      <div style="display:flex; gap:12px; margin-top: 24px;">
+        <button class="btn btn-secondary ob-btn" style="flex:1" onclick="prevObStep(2)"><i class="fas fa-arrow-left" style="margin-right:6px"></i> Back</button>
+        <button class="btn btn-primary ob-btn" style="flex:2" onclick="nextObStep(2)">Continue <i class="fas fa-arrow-right" style="margin-left:6px"></i></button>
+      </div>
     </div>
-    <div>
-      <div class="ca-panel-name">Aria</div>
-      <div class="ca-panel-role">Personal CA &nbsp;·&nbsp; <span style="color:#10B981">● Online</span></div>
-    </div>
-    <button class="ca-panel-x" onclick="toggleCAPanel()"><i class="fas fa-times"></i></button>
-  </div>
-  <div class="ca-panel-body" id="caPanelBody" style="flex:1; display:flex; flex-direction:column; padding:0;">
-    <div id="caInnerContent" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px;">
-      <div class="ca-loading"><i class="fas fa-spinner fa-spin"></i></div>
-    </div>
-  </div>
-  <div class="ca-chat-footer" style="padding:12px 14px; border-top:1px solid var(--border); background:var(--surface); display:flex; gap:8px;">
-    <input type="text" id="caChatInput" class="wz-main-input" placeholder="Ask Aria anything..." style="flex:1; border-radius:var(--r-full); padding:10px 14px; font-size:12.5px; border-color:var(--border);" onkeypress="if(event.key==='Enter') sendAriaMsg()">
-    <button class="btn btn-primary" style="border-radius:50%; width:38px; height:38px; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0" onclick="sendAriaMsg()">
-      <i class="fas fa-paper-plane" style="font-size:13px"></i>
-    </button>
-  </div>
-</div>
 
-<!-- ===== AUTH / LOGIN OVERLAY ===== -->
-<div class="ob-overlay hidden" id="authOverlay" style="z-index: 10000; background: var(--bg);">
-  <div class="ob-bg">
-    <div class="ob-orb ob-orb1"></div>
-    <div class="ob-orb ob-orb2"></div>
-    <div class="ob-orb ob-orb3"></div>
-  </div>
-  <div class="ob-card" style="max-width:380px; padding: 40px 32px; text-align:center; animation: fadeIn .3s ease">
-    <div style="margin-bottom:20px"><div style="display:inline-flex; width:64px; height:64px; border-radius:20px; align-items:center; justify-content:center; color:#fff; font-size:32px; background: linear-gradient(135deg,#7C3AED,#EC4899); box-shadow: 0 12px 32px rgba(139,92,246,0.5);"><i class="fas fa-compass"></i></div></div>
-    <h2 style="font-family:'Outfit',sans-serif; color:var(--text1); font-weight:800; font-size:24px; margin-bottom:8px">Welcome Back</h2>
-    <p style="color:var(--text2); font-size:13px; margin-bottom:28px">Your financial assistant is locked.</p>
-    <div class="wz-input-wrap" style="margin-bottom:24px">
-      <input type="password" id="authPasscode" class="wz-main-input" placeholder="Enter any passcode" style="text-align:center; letter-spacing: 2px" onkeypress="if(event.key==='Enter') loginSession()">
+    <!-- Step 3: Goals -->
+    <div id="obStep3" class="hidden">
+      <div class="form-group">
+        <label class="form-label">How much do you want to save every month?</label>
+        <input type="number" id="obInpSaveGoal" class="wz-main-input" placeholder="e.g. 10000" />
+        <div class="quick-picks" style="margin-top:12px;">
+          <div class="qp-chip" onclick="fillSaveGoal(0.1)">10%</div>
+          <div class="qp-chip" onclick="fillSaveGoal(0.2)">20%</div>
+          <div class="qp-chip" onclick="fillSaveGoal(0.3)">30%</div>
+          <div class="qp-chip" onclick="document.getElementById('obInpSaveGoal').focus()">Custom</div>
+        </div>
+        <p style="font-size:12px; color:var(--text3); margin-top:12px;"><i class="fas fa-bullseye"></i> Usually 20% of income is a great starting goal.</p>
+      </div>
+      <div style="display:flex; gap:12px; margin-top: 24px;">
+        <button class="btn btn-secondary ob-btn" style="flex:1" onclick="prevObStep(3)"><i class="fas fa-arrow-left" style="margin-right:6px"></i> Back</button>
+        <button class="btn btn-primary ob-btn" style="flex:2" onclick="finishOnboarding()">Complete Setup <i class="fas fa-check" style="margin-left:6px"></i></button>
+      </div>
     </div>
-    <button class="btn btn-primary ob-btn" onclick="loginSession()"><i class="fas fa-unlock" style="margin-right:6px"></i> Unlock Dashboard</button>
+
+    <div class="wz-dots" id="obDots" style="justify-content:center; margin-top:24px;">
+      <div class="wz-dot active"></div><div class="wz-dot"></div><div class="wz-dot"></div>
+    </div>
   </div>
 </div>
 

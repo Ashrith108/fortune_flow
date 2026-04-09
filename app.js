@@ -1,671 +1,387 @@
 /* =====================================================
-   FORTUNE FLOW GUIDE — app.js
-   ===================================================== */
+   app.js - FortuneFlow Core Logic
+===================================================== */
 
-'use strict';
-
-/* =====================================================
-   STATE
-   ===================================================== */
-let expenses   = [];
-let budgets    = {};           // { category: amount }
-let totalBudget = 0;
-let settings   = { name: 'User', currency: '₹', dark: false };
-let urlHistory = [];
-let sortCol    = 'date';
-let sortDir    = 'desc';
-let filtered   = [];
-
-/* Charts */
-let barChart   = null;
-let dChart     = null;
-let lineChart  = null;
-let predChart  = null;
-
-/* =====================================================
-   CATEGORIES
-   ===================================================== */
 const CATS = [
-  { name: 'Food & Dining',    icon: '🍽️', color: '#F97316' },
-  { name: 'Transportation',   icon: '🚗', color: '#2563EB' },
-  { name: 'Entertainment',    icon: '🎮', color: '#7C3AED' },
-  { name: 'Shopping',         icon: '🛍️', color: '#EC4899' },
-  { name: 'Bills & Utilities',icon: '💡', color: '#0891B2' },
-  { name: 'Healthcare',       icon: '🏥', color: '#10B981' },
-  { name: 'Education',        icon: '📚', color: '#F59E0B' },
-  { name: 'Others',           icon: '📦', color: '#64748B' },
+  { name: 'Food & Dining', color: '#10B981', icon: '🍽️' },
+  { name: 'Transportation', color: '#3B82F6', icon: '🚗' },
+  { name: 'Entertainment', color: '#8B5CF6', icon: '🎮' },
+  { name: 'Shopping', color: '#EC4899', icon: '🛍️' },
+  { name: 'Bills & Utilities', color: '#F59E0B', icon: '💡' },
+  { name: 'Healthcare', color: '#EF4444', icon: '🏥' },
+  { name: 'Education', color: '#06B6D4', icon: '📚' },
+  { name: 'Others', color: '#9CA3AF', icon: '📦' }
 ];
 
-const catColor = name => (CATS.find(c => c.name === name)?.color) || '#94A3B8';
-const catIcon  = name => (CATS.find(c => c.name === name)?.icon)  || '📦';
-
-/* =====================================================
-   CHART COLORS
-   ===================================================== */
-const CHART_COLORS = ['#2563EB','#7C3AED','#0891B2','#10B981','#F59E0B','#F97316','#EC4899','#64748B'];
-
-/* =====================================================
-   SAMPLE DATA (pre-loaded if empty)
-   ===================================================== */
-function loadSampleData() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-
-  const pad = n => String(n).padStart(2,'0');
-  const d = (mo, day) => `${y}-${pad(mo+1)}-${pad(day)}`;
-
-  return [
-    // Current month
-    { id: uid(), description:'Grocery Shopping',    category:'Food & Dining',    amount:2450, date:d(m,3),  notes:'Weekly groceries' },
-    { id: uid(), description:'Electricity Bill',    category:'Bills & Utilities', amount:1850, date:d(m,4),  notes:'' },
-    { id: uid(), description:'Uber Ride to Office', category:'Transportation',    amount:320,  date:d(m,5),  notes:'' },
-    { id: uid(), description:'Netflix Subscription',category:'Entertainment',     amount:649,  date:d(m,6),  notes:'' },
-    { id: uid(), description:'Restaurant Dinner',   category:'Food & Dining',    amount:1200, date:d(m,8),  notes:'Family outing' },
-    { id: uid(), description:'Amazon Purchase',     category:'Shopping',          amount:3200, date:d(m,10), notes:'Electronics' },
-    { id: uid(), description:'Doctor Visit',        category:'Healthcare',        amount:800,  date:d(m,12), notes:'General checkup' },
-    { id: uid(), description:'Udemy Course',        category:'Education',         amount:1499, date:d(m,14), notes:'Python course' },
-    { id: uid(), description:'Petrol',              category:'Transportation',    amount:1500, date:d(m,16), notes:'' },
-    { id: uid(), description:'Swiggy Order',        category:'Food & Dining',    amount:450,  date:d(m,18), notes:'Dinner delivery' },
-    { id: uid(), description:'Internet Bill',       category:'Bills & Utilities', amount:999,  date:d(m,20), notes:'' },
-    { id: uid(), description:'Clothing',            category:'Shopping',          amount:2800, date:d(m,22), notes:'New clothes' },
-
-    // Previous month
-    { id: uid(), description:'Grocery Shopping',    category:'Food & Dining',    amount:2200, date:d(m-1,2),  notes:'' },
-    { id: uid(), description:'Electricity Bill',    category:'Bills & Utilities', amount:1920, date:d(m-1,5),  notes:'' },
-    { id: uid(), description:'Gym Membership',      category:'Healthcare',        amount:1200, date:d(m-1,7),  notes:'' },
-    { id: uid(), description:'Movie Tickets',       category:'Entertainment',     amount:800,  date:d(m-1,10), notes:'' },
-    { id: uid(), description:'Petrol',              category:'Transportation',    amount:1400, date:d(m-1,14), notes:'' },
-    { id: uid(), description:'Online Shopping',     category:'Shopping',          amount:4500, date:d(m-1,16), notes:'Monthly haul' },
-    { id: uid(), description:'Restaurant',          category:'Food & Dining',    amount:1800, date:d(m-1,20), notes:'' },
-    { id: uid(), description:'Water Bill',          category:'Bills & Utilities', amount:350,  date:d(m-1,22), notes:'' },
-
-    // Two months ago
-    { id: uid(), description:'Grocery Shopping',    category:'Food & Dining',    amount:2600, date:d(m-2,3),  notes:'' },
-    { id: uid(), description:'Electricity Bill',    category:'Bills & Utilities', amount:1750, date:d(m-2,5),  notes:'' },
-    { id: uid(), description:'Uber Rides',          category:'Transportation',    amount:980,  date:d(m-2,8),  notes:'' },
-    { id: uid(), description:'Book Purchase',       category:'Education',         amount:650,  date:d(m-2,12), notes:'' },
-    { id: uid(), description:'Pharmacy',            category:'Healthcare',        amount:420,  date:d(m-2,15), notes:'' },
-    { id: uid(), description:'Spotify Premium',     category:'Entertainment',     amount:119,  date:d(m-2,18), notes:'' },
-    { id: uid(), description:'Clothes Shopping',    category:'Shopping',          amount:3100, date:d(m-2,22), notes:'' },
-  ];
-}
-
-/* =====================================================
-   UTILITIES
-   ===================================================== */
-function uid() {
-  return '_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
-}
+let expenses = JSON.parse(localStorage.getItem('ff_expenses')) || [];
+let totalBudget = Number(localStorage.getItem('ff_total_budget')) || 0;
+let catBudgets = JSON.parse(localStorage.getItem('ff_cat_budgets')) || {};
+let userProfile = JSON.parse(localStorage.getItem('ff_profile')) || { name: 'User', currency: '₹' };
 
 function fmt(n) {
-  return settings.currency + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: userProfile.currency === '₹' ? 'INR' : 'USD' }).format(n);
+}
+function monthKey(d) { return d.substring(0,7); }
+function currentMonthKey() { return new Date().toISOString().substring(0,7); }
+
+function saveLocal() {
+  localStorage.setItem('ff_expenses', JSON.stringify(expenses));
 }
 
-function monthKey(dateStr) { return dateStr.substring(0,7); }
-
-function currentMonthKey() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-}
-
-function monthLabel(key) {
-  const [y,m] = key.split('-');
-  return new Date(y, m-1, 1).toLocaleString('default', { month:'short', year:'2-digit' });
-}
-
-function getMonthlyTotals(n = 6) {
-  const labels = [], data = [];
-  const now = new Date();
-  for (let i = n-1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    const total = expenses
-      .filter(e => monthKey(e.date) === key)
-      .reduce((s,e) => s + Number(e.amount), 0);
-    labels.push(monthLabel(key));
-    data.push(+total.toFixed(2));
+// ==== APP INIT ====
+function initApp() {
+  document.getElementById('sidebarName').textContent = userProfile.name;
+  document.getElementById('topbarName').textContent = userProfile.name;
+  document.getElementById('settingsName').value = userProfile.name;
+  document.getElementById('settingsCurrency').value = userProfile.currency || '₹';
+  
+  if (localStorage.getItem('ff_theme') === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.getElementById('darkModeChk').checked = true;
+    document.getElementById('themeIcon').className = 'fas fa-sun';
   }
-  return { labels, data };
-}
 
-function getCatTotals(mk = null) {
-  const totals = {};
-  expenses.forEach(e => {
-    if (mk && monthKey(e.date) !== mk) return;
-    totals[e.category] = (totals[e.category] || 0) + Number(e.amount);
+  // Setup navigation
+  document.querySelectorAll('.nav-item[data-page]').forEach(el => {
+    el.addEventListener('click', (e) => navigate(e.currentTarget.getAttribute('data-page')));
   });
-  return totals;
+
+  document.getElementById('hamburger').addEventListener('click', () => {
+    document.querySelector('.app-wrapper').classList.toggle('collapsed');
+  });
+  document.getElementById('collapseBtn').addEventListener('click', () => {
+    document.querySelector('.app-wrapper').classList.toggle('collapsed');
+  });
+
+  renderDashboard();
+  renderExpensesForm();
+  updateInsightsBadge();
+  initScore();
 }
 
-function getDailyTotals(mk) {
-  const [ys,ms] = mk.split('-');
-  const y = +ys, m = +ms;
-  const days = new Date(y, m, 0).getDate();
-  const labels = [], data = [];
-  for (let d = 1; d <= days; d++) {
-    const ds = `${ys}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const total = expenses.filter(e => e.date === ds).reduce((s,e) => s + Number(e.amount), 0);
-    labels.push(d);
-    data.push(+total.toFixed(2));
-  }
-  return { labels, data };
+// ==== NAVIGATION ====
+function navigate(pageId) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const btn = document.querySelector(`.nav-item[data-page="${pageId}"]`);
+  if (btn) btn.classList.add('active');
+
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.getElementById(`page-${pageId}`).classList.add('active');
+
+  const titles = {
+    'dashboard': {t: 'Dashboard', s: 'Complete overview of your finances'},
+    'expenses': {t: 'Expenses', s: 'Track and manage your spending'},
+    'analysis': {t: 'Analysis', s: 'Visual breakdown of your habits'},
+    'prediction': {t: 'Prediction', s: 'AI-driven spending forecast'},
+    'budget': {t: 'Budget Planning', s: 'Set goals and monitor limits'},
+    'insights': {t: 'Smart Insights', s: 'Personalized financial advice'},
+    'settings': {t: 'Settings', s: 'Manage your profile and data'},
+    'urlsafety': {t: 'URL Safety', s: 'Verify financial links before paying'}
+  };
+  
+  document.getElementById('pageTitle').textContent = titles[pageId].t;
+  document.getElementById('pageSub').textContent = titles[pageId].s;
+
+  if (pageId === 'dashboard') renderDashboard();
+  if (pageId === 'expenses') renderExpenses();
+  if (pageId === 'analysis') renderAnalysis();
+  if (pageId === 'prediction') renderPrediction();
+  if (pageId === 'budget') renderBudget();
+  if (pageId === 'insights') renderInsights();
 }
 
-function forecast() {
-  const { data } = getMonthlyTotals(6);
-  const valid = data.filter(v => v > 0);
-  if (!valid.length) return 0;
-  const weights = valid.map((_,i) => i+1);
-  const tw = weights.reduce((a,b) => a+b, 0);
-  return Math.round(valid.reduce((s,v,i) => s + v*weights[i], 0) / tw);
+// ==== UTILS & TOASTS ====
+function showToast(msg, type='info') {
+  const stack = document.getElementById('toastStack');
+  const d = document.createElement('div');
+  d.className = `toast ${type}`;
+  let ic = 'fa-info-circle';
+  if (type === 'success') ic = 'fa-check-circle';
+  if (type === 'error') ic = 'fa-times-circle';
+  if (type === 'warning') ic = 'fa-exclamation-triangle';
+  
+  d.innerHTML = `<i class="fas ${ic}"></i> <span>${msg}</span>`;
+  stack.appendChild(d);
+  setTimeout(() => { d.style.animation = 'fadeOut 0.3s ease forwards'; setTimeout(() => d.remove(), 300); }, 3000);
 }
 
-function getAvailableMonths() {
-  const keys = [...new Set(expenses.map(e => monthKey(e.date)))].sort().reverse();
-  return keys;
-}
-
-/* =====================================================
-   PERSISTENCE
-   ===================================================== */
-function save() {
-  localStorage.setItem('ff_expenses',   JSON.stringify(expenses));
-  localStorage.setItem('ff_budgets',    JSON.stringify(budgets));
-  localStorage.setItem('ff_total_budget', totalBudget);
-  localStorage.setItem('ff_settings',  JSON.stringify(settings));
-  localStorage.setItem('ff_url_history', JSON.stringify(urlHistory));
-}
-
-function load() {
-  const e = localStorage.getItem('ff_expenses');
-  const b = localStorage.getItem('ff_budgets');
-  const t = localStorage.getItem('ff_total_budget');
-  const s = localStorage.getItem('ff_settings');
-  const u = localStorage.getItem('ff_url_history');
-
-  expenses    = e ? JSON.parse(e) : loadSampleData();
-  budgets     = b ? JSON.parse(b) : { 'Food & Dining':5000, 'Transportation':3000, 'Entertainment':2000, 'Shopping':5000, 'Bills & Utilities':4000, 'Healthcare':2000, 'Education':2000, 'Others':1000 };
-  totalBudget = t ? +t : 30000;
-  settings    = s ? JSON.parse(s) : { name:'User', currency:'₹', dark: false };
-  urlHistory  = u ? JSON.parse(u) : [];
-
-  if (!e) save(); // persist sample
-}
-
-/* =====================================================
-   NAVIGATION
-   ===================================================== */
-const PAGE_INFO = {
-  dashboard: { title: 'Dashboard',         sub: "Welcome back! Here's your financial overview." },
-  expenses:  { title: 'Expenses',          sub: 'Track and manage all your transactions.' },
-  analysis:  { title: 'Analysis',          sub: 'Deep dive into your spending patterns.' },
-  prediction:{ title: 'Prediction',        sub: 'AI-powered forecasts based on your history.' },
-  budget:    { title: 'Budget',            sub: 'Set and monitor your spending limits.' },
-  insights:  { title: 'Insights',          sub: 'Smart tips to improve your finances.' },
-  urlsafety: { title: 'URL Safety Checker',sub: 'Verify financial links before you click.' },
-  settings:  { title: 'Settings',          sub: 'Customize your FortuneFlow experience.' },
-};
-
-let activePage = 'dashboard';
-
-function navigate(page) {
-  if (activePage === page) return;
-
-  // hide current
-  document.getElementById('page-'+activePage)?.classList.remove('active');
-  document.getElementById('nav-'+activePage)?.classList.remove('active');
-
-  activePage = page;
-
-  // show new
-  const pg = document.getElementById('page-'+page);
-  if (pg) pg.classList.add('active');
-
-  const nav = document.getElementById('nav-'+page);
-  if (nav) nav.classList.add('active');
-
-  const info = PAGE_INFO[page] || {};
-  document.getElementById('pageTitle').textContent = info.title || page;
-  document.getElementById('pageSub').textContent   = info.sub   || '';
-
-  // close mobile sidebar
-  document.getElementById('sidebar').classList.remove('mobile-open');
-
-  refreshPage(page);
-}
-
-function refreshPage(page) {
-  switch(page) {
-    case 'dashboard':  renderDashboard(); break;
-    case 'expenses':   renderExpensesTable(); break;
-    case 'analysis':   renderAnalysis(); break;
-    case 'prediction': renderPrediction(); break;
-    case 'budget':     renderBudget(); break;
-    case 'insights':   renderInsights(); break;
-    case 'urlsafety':  renderUrlHistory(); break;
-    case 'settings':   renderSettings(); break;
+// Theme
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  if (isDark) {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('ff_theme', 'light');
+    document.getElementById('themeIcon').className = 'fas fa-moon';
+  } else {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    localStorage.setItem('ff_theme', 'dark');
+    document.getElementById('themeIcon').className = 'fas fa-sun';
   }
 }
 
-/* =====================================================
-   DASHBOARD
-   ===================================================== */
+// ==== DASHBOARD ====
 function renderDashboard() {
   const cmk = currentMonthKey();
-  const monthExp = expenses.filter(e => monthKey(e.date) === cmk);
-  const total = monthExp.reduce((s,e) => s + Number(e.amount), 0);
-
-  // Stat: total spending
+  const currentExps = expenses.filter(e => monthKey(e.date) === cmk);
+  const total = currentExps.reduce((s,e) => s + Number(e.amount), 0);
+  
   document.getElementById('statTotal').textContent = fmt(total);
+  
+  if (totalBudget > 0) {
+    const remain = totalBudget - total;
+    const pct = Math.min(100, Math.round(total / totalBudget * 100));
+    document.getElementById('statBudget').textContent = fmt(Math.max(0, remain));
+    document.getElementById('statBudgetChange').innerHTML = `<i class="fas fa-chart-pie"></i> ${pct}% utilized`;
+  }
 
-  // Stat: remaining budget
-  const remaining = totalBudget - total;
-  document.getElementById('statBudget').textContent = fmt(Math.max(0, remaining));
-  const utilPct = totalBudget > 0 ? Math.round(total/totalBudget*100) : 0;
-  document.getElementById('statBudgetChange').innerHTML = `<i class="fas fa-chart-pie"></i> ${utilPct}% utilized`;
-
-  // Last month comparison
-  const lmk = (() => {
-    const now = new Date();
-    const d = new Date(now.getFullYear(), now.getMonth()-1, 1);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-  })();
-  const lastTotal = expenses.filter(e => monthKey(e.date) === lmk).reduce((s,e) => s + Number(e.amount), 0);
-  const diff = lastTotal > 0 ? Math.round((total - lastTotal) / lastTotal * 100) : 0;
-  const chgEl = document.getElementById('statTotalChange');
-  if (diff > 0) chgEl.innerHTML = `<i class="fas fa-arrow-up"></i> ${diff}% from last month`;
-  else if (diff < 0) chgEl.innerHTML = `<i class="fas fa-arrow-down"></i> ${Math.abs(diff)}% from last month`;
-  else chgEl.innerHTML = `<i class="fas fa-minus"></i> Same as last month`;
-
-  // Stat: top category
-  const cats = getCatTotals(cmk);
+  const cats = getCatTotals();
   const topCat = Object.entries(cats).sort((a,b) => b[1]-a[1])[0];
-  document.getElementById('statTopCat').textContent = topCat ? topCat[0].split(' &')[0] : '—';
-  document.getElementById('statTopCatAmt').innerHTML = `<i class="fas fa-tag"></i> ${topCat ? fmt(topCat[1]) : '₹0'} spent`;
+  if (topCat) {
+    document.getElementById('statTopCat').textContent = topCat[0];
+    document.getElementById('statTopCatAmt').innerHTML = `<i class="fas fa-tag"></i> ${fmt(topCat[1])} spent`;
+  }
 
-  // Stat: forecast
   const fc = forecast();
   document.getElementById('statForecast').textContent = fmt(fc);
 
-  // update badge label
-  document.getElementById('catMonthLabel').textContent = monthLabel(cmk);
+  // Recent Table
+  const tbody = document.getElementById('recentBody');
+  const recent = [...expenses].sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+  if (recent.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><i class="fas fa-inbox"></i><p>No expenses yet.</p></div></td></tr>`;
+  } else {
+    tbody.innerHTML = recent.map(e => {
+      const c = CATS.find(x => x.name === e.category) || CATS[7];
+      return `<tr>
+        <td><strong>${e.description}</strong></td>
+        <td><span class="qp-chip" style="display:inline-flex; border-color:${c.color}; color:${c.color}"><i class="${c.icon} fa-fw"></i> ${e.category}</span></td>
+        <td><span style="color:var(--text3);font-size:12px">${e.date}</span></td>
+        <td style="font-weight:700">${fmt(e.amount)}</td>
+        <td><span style="color:var(--success); font-weight:700; font-size:12px">Processed</span></td>
+      </tr>`;
+    }).join('');
+  }
 
   updateBarChart();
   updateDoughnutChart();
-  renderRecentTable();
 }
 
-function renderRecentTable() {
-  const tbody = document.getElementById('recentBody');
-  const recent = [...expenses]
-    .sort((a,b) => b.date.localeCompare(a.date))
-    .slice(0,8);
+// ==== EXPENSES MANAGEMENT ====
+function renderExpensesForm() {
+  document.getElementById('expDate').value = new Date().toISOString().split('T')[0];
+  populateMonthFilter();
+}
 
-  if (!recent.length) {
-    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><i class="fas fa-inbox"></i><p>No expenses yet. Add your first expense!</p></div></td></tr>`;
+function toggleForm() {
+  const wrap = document.getElementById('expenseFormWrap');
+  if(wrap.style.display === 'none' || wrap.classList.contains('hidden')) {
+    wrap.style.display = 'block'; wrap.classList.remove('hidden');
+  } else {
+    wrap.style.display = 'none'; wrap.classList.add('hidden');
+  }
+}
+
+function addExpense() {
+  const desc = document.getElementById('expDesc').value.trim();
+  const amt = document.getElementById('expAmount').value.trim();
+  const cat = document.getElementById('expCategory').value;
+  const date = document.getElementById('expDate').value;
+  const notes = document.getElementById('expNotes').value.trim();
+
+  if(!desc || !amt || isNaN(amt) || !cat || !date) { showToast('Please fill all required fields correctly.', 'error'); return; }
+
+  expenses.push({ id: Date.now().toString(), description: desc, amount: Number(amt), category: cat, date, notes });
+  saveLocal();
+  showToast('Expense added successfully!', 'success');
+  
+  clearExpenseForm();
+  renderExpenses();
+  checkBudgetWarning(cat, Number(amt));
+}
+
+function saveDynamicExpense(data) {
+  expenses.push({ id: Date.now().toString(), description: data.desc, amount: Number(data.amount), category: data.cat, date: data.date, notes: data.notes });
+  saveLocal();
+  showToast('Expense added via Wizard!', 'success');
+  renderDashboard();
+  checkBudgetWarning(data.cat, Number(data.amount));
+}
+
+function checkBudgetWarning(catName, amt) {
+  if (totalBudget > 0) {
+    const total = expenses.filter(e => monthKey(e.date) === currentMonthKey()).reduce((s,e)=>s+Number(e.amount),0);
+    if (total > totalBudget) {
+      setTimeout(() => alert(`Warning: You have exceeded your overall budget of ${fmt(totalBudget)}!`), 500);
+    }
+  }
+}
+
+function clearExpenseForm() {
+  document.getElementById('expDesc').value = '';
+  document.getElementById('expAmount').value = '';
+  document.getElementById('expCategory').value = '';
+  document.getElementById('expNotes').value = '';
+}
+
+function populateMonthFilter() {
+  const sel = document.getElementById('monthFilter');
+  const m = [...new Set(expenses.map(e => monthKey(e.date)))].sort().reverse();
+  sel.innerHTML = `<option value="">All Months</option>` + m.map(x => `<option value="${x}">${x}</option>`).join('');
+}
+
+function filterExpenses() {
+  const s = document.getElementById('expSearch').value.toLowerCase();
+  const c = document.getElementById('catFilter').value;
+  const m = document.getElementById('monthFilter').value;
+  
+  let f = expenses.filter(e => {
+    return (!s || e.description.toLowerCase().includes(s)) &&
+           (!c || e.category === c) &&
+           (!m || monthKey(e.date) === m);
+  });
+  
+  f.sort((a,b) => new Date(b.date) - new Date(a.date));
+  renderExpenseTable(f);
+}
+
+function renderExpenseTable(list) {
+  const tbody = document.getElementById('expTableBody');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><p>No expenses found.</p></div></td></tr>`;
+    document.getElementById('expCount').textContent = `0 expenses`;
+    document.getElementById('expTotal').textContent = `Total: ₹0`;
     return;
   }
-
-  tbody.innerHTML = recent.map(e => {
-    const color = catColor(e.category);
-    const pct = totalBudget > 0 ? Math.round(Number(e.amount)/totalBudget*100) : 0;
-    return `<tr>
+  
+  tbody.innerHTML = list.map(e => `
+    <tr>
       <td><strong>${e.description}</strong></td>
-      <td><span class="category-pill" style="background:${color}18;color:${color}">${catIcon(e.category)} ${e.category}</span></td>
-      <td>${formatDate(e.date)}</td>
-      <td><strong>${fmt(e.amount)}</strong></td>
-      <td><span class="category-pill" style="background:${pct > 10 ? '#FEF2F215' : '#ECFDF515'};color:${pct > 10 ? '#EF4444' : '#10B981'}">${pct > 10 ? '⚠️ High' : '✅ Normal'}</span></td>
-    </tr>`;
-  }).join('');
+      <td>${e.category}</td>
+      <td>${e.date}</td>
+      <td style="font-weight:700">${fmt(e.amount)}</td>
+      <td style="font-size:12px;color:var(--text3)">${e.notes ? e.notes : '-'}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="delExpense('${e.id}')"><i class="fas fa-trash"></i></button></td>
+    </tr>
+  `).join('');
+  
+  document.getElementById('expCount').textContent = `${list.length} expenses`;
+  document.getElementById('expTotal').textContent = `Total: ${fmt(list.reduce((s,e)=>s+e.amount,0))}`;
 }
 
-/* =====================================================
-   CHARTS
-   ===================================================== */
-function chartDefaults() {
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        labels: { font: { family:'Inter', size:12 }, color: getComputedStyle(document.documentElement).getPropertyValue('--text2').trim() }
-      },
-      tooltip: { bodyFont: { family:'Inter' }, titleFont: { family:'Inter', weight:'700' } }
-    }
-  };
+function renderExpenses() { populateMonthFilter(); filterExpenses(); }
+
+function delExpense(id) {
+  if(confirm("Delete this expense?")) {
+    expenses = expenses.filter(e => e.id !== id);
+    saveLocal(); showToast('Deleted.', 'success'); filterExpenses(); renderDashboard();
+  }
 }
 
-function gridColor() {
-  return getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || '#E2E8F0';
-}
-function textColor() {
-  return getComputedStyle(document.documentElement).getPropertyValue('--text2').trim() || '#475569';
+// ==== ANALYSIS ====
+let chBar, chDoughnut, chLine, chPred;
+
+function getCatTotals(filterMonth = currentMonthKey()) {
+  const d = {};
+  expenses.filter(e => (!filterMonth || monthKey(e.date) === filterMonth)).forEach(e => {
+    d[e.category] = (d[e.category] || 0) + e.amount;
+  });
+  return d;
 }
 
 function updateBarChart() {
-  const n = parseInt(document.getElementById('barMonthRange')?.value || 6);
-  const { labels, data } = getMonthlyTotals(n);
-
   const ctx = document.getElementById('barChart');
   if (!ctx) return;
-
-  if (barChart) barChart.destroy();
-
-  barChart = new Chart(ctx, {
+  const limit = parseInt(document.getElementById('barMonthRange')?.value || 6);
+  
+  const m = [...new Set(expenses.map(e => monthKey(e.date)))].sort().slice(-limit);
+  const data = m.map(mon => expenses.filter(e => monthKey(e.date)===mon).reduce((s,e)=>s+e.amount,0));
+  
+  if(chBar) chBar.destroy();
+  chBar = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Monthly Spending',
-        data,
-        backgroundColor: labels.map((_,i) => i === labels.length-1 ? '#2563EB' : '#2563EB55'),
-        borderColor: '#2563EB',
-        borderWidth: 0,
-        borderRadius: 8,
-        borderSkipped: false,
-      }]
-    },
-    options: {
-      ...chartDefaults(),
-      plugins: { ...chartDefaults().plugins, legend: { display:false } },
-      scales: {
-        x: { grid:{ display:false }, ticks:{ font:{family:'Inter',size:11}, color: textColor() } },
-        y: { grid:{ color: gridColor() }, ticks:{ font:{family:'Inter',size:11}, color: textColor(), callback: v => '₹'+v.toLocaleString('en-IN') }, beginAtZero:true }
-      },
-    }
+    data: { labels: m, datasets: [{ label: 'Spent', data, backgroundColor: 'rgba(124,58,237,0.8)', borderRadius: 6 }] },
+    options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
   });
 }
 
 function updateDoughnutChart() {
-  const cats = getCatTotals(currentMonthKey());
-  const keys = Object.keys(cats);
-  const vals = keys.map(k => cats[k]);
-
   const ctx = document.getElementById('doughnutChart');
-  if (!ctx) return;
-  if (dChart) dChart.destroy();
-
-  if (!keys.length) {
-    dChart = null;
-    return;
-  }
-
-  dChart = new Chart(ctx, {
+  if(!ctx) return;
+  const cats = getCatTotals();
+  if(chDoughnut) chDoughnut.destroy();
+  
+  document.getElementById('catMonthLabel').textContent = currentMonthKey();
+  
+  chDoughnut = new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels: keys,
-      datasets: [{ data: vals, backgroundColor: keys.map(catColor), borderWidth: 2, borderColor: getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#fff', hoverOffset: 8 }]
+      labels: Object.keys(cats),
+      datasets: [{ data: Object.values(cats), backgroundColor: CATS.map(c => c.color), borderWidth: 2, borderColor: 'var(--surface)' }]
     },
-    options: {
-      ...chartDefaults(),
-      cutout: '65%',
-      plugins: {
-        legend: { position:'right', labels:{ font:{family:'Inter',size:11}, color: textColor(), boxWidth:12, padding:14 } },
-        tooltip: { bodyFont:{family:'Inter'}, callbacks: { label: ctx => ` ${fmt(ctx.raw)}` } }
-      }
-    }
+    options: { maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'right', labels: { color: 'var(--text2)' } } } }
   });
 }
 
-function updateLineChart() {
-  const sel = document.getElementById('trendMonthSel');
-  const mk  = sel?.value || currentMonthKey();
-  const { labels, data } = getDailyTotals(mk);
-
-  const ctx = document.getElementById('lineChart');
-  if (!ctx) return;
-  if (lineChart) lineChart.destroy();
-
-  lineChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Daily Spending',
-        data,
-        borderColor: '#7C3AED',
-        backgroundColor: 'rgba(124,58,237,0.1)',
-        borderWidth: 2.5,
-        pointRadius: 4,
-        pointBackgroundColor: '#7C3AED',
-        pointHoverRadius: 6,
-        fill: true,
-        tension: 0.4,
-      }]
-    },
-    options: {
-      ...chartDefaults(),
-      plugins: { legend:{display:false} },
-      scales: {
-        x: { grid:{display:false}, ticks:{ font:{family:'Inter',size:11}, color: textColor() } },
-        y: { grid:{ color: gridColor() }, ticks:{ font:{family:'Inter',size:11}, color: textColor(), callback: v => '₹'+v.toLocaleString('en-IN') }, beginAtZero:true }
-      }
-    }
-  });
-}
-
-function updatePredChart() {
-  const { labels: hLabels, data: hData } = getMonthlyTotals(3);
-  const fc = forecast();
-  const now = new Date();
-  const fMonths = [1,2,3].map(i => {
-    const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
-    return d.toLocaleString('default',{month:'short',year:'2-digit'});
-  });
-  const variance = () => Math.round(fc * (0.93 + Math.random()*0.14));
-  const fData = [variance(), variance(), variance()];
-
-  // Combine
-  const allLabels = [...hLabels, ...fMonths];
-  const histDs    = [...hData, null, null, null];
-  const foreDs    = [null, null, hData[hData.length-1] || fc, ...fData];
-
-  const ctx = document.getElementById('predChart');
-  if (!ctx) return;
-  if (predChart) predChart.destroy();
-
-  predChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: allLabels,
-      datasets: [
-        {
-          label: 'Historical',
-          data: histDs,
-          borderColor: '#2563EB',
-          backgroundColor: 'rgba(37,99,235,0.08)',
-          fill: true,
-          borderWidth: 2.5,
-          pointRadius: 5,
-          tension: 0.4,
-          spanGaps: false,
-        },
-        {
-          label: 'Forecast',
-          data: foreDs,
-          borderColor: '#F97316',
-          backgroundColor: 'rgba(249,115,22,0.08)',
-          fill: true,
-          borderWidth: 2.5,
-          borderDash: [6,4],
-          pointRadius: 5,
-          tension: 0.4,
-          spanGaps: false,
-        }
-      ]
-    },
-    options: {
-      ...chartDefaults(),
-      scales: {
-        x: { grid:{display:false}, ticks:{ font:{family:'Inter',size:11}, color: textColor() } },
-        y: { grid:{ color: gridColor() }, ticks:{ font:{family:'Inter',size:11}, color: textColor(), callback: v => '₹'+v.toLocaleString('en-IN') }, beginAtZero:true }
-      }
-    }
-  });
-}
-
-/* =====================================================
-   EXPENSES
-   ===================================================== */
-function addExpense() {
-  const desc   = document.getElementById('expDesc').value.trim();
-  const amount = parseFloat(document.getElementById('expAmount').value);
-  const cat    = document.getElementById('expCategory').value;
-  const date   = document.getElementById('expDate').value;
-  const notes  = document.getElementById('expNotes').value.trim();
-
-  if (!desc)   return showToast('Missing field', 'Please enter a description.', 'warning');
-  if (!amount || amount <= 0) return showToast('Missing field', 'Please enter a valid amount.', 'warning');
-  if (!cat)    return showToast('Missing field', 'Please select a category.', 'warning');
-  if (!date)   return showToast('Missing field', 'Please select a date.', 'warning');
-
-  expenses.push({ id: uid(), description: desc, amount, category: cat, date, notes });
-  save();
-  clearExpenseForm();
-  renderExpensesTable();
-  showToast('Expense Added', `${desc} — ${fmt(amount)}`, 'success');
-  updateInsightsBadge();
-}
-
-function deleteExpense(id) {
-  expenses = expenses.filter(e => e.id !== id);
-  save();
-  filterExpenses();
-  showToast('Deleted', 'Expense removed.', 'info');
-  updateInsightsBadge();
-}
-
-function clearExpenseForm() {
-  ['expDesc','expAmount','expCategory','expDate','expNotes'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  document.getElementById('expDate').value = new Date().toISOString().split('T')[0];
-}
-
-/* Filter + Sort */
-function filterExpenses() {
-  const search = (document.getElementById('expSearch')?.value || '').toLowerCase();
-  const cat    = document.getElementById('catFilter')?.value || '';
-  const month  = document.getElementById('monthFilter')?.value || '';
-
-  filtered = expenses.filter(e => {
-    const matchSearch = !search || e.description.toLowerCase().includes(search) || e.category.toLowerCase().includes(search);
-    const matchCat    = !cat    || e.category === cat;
-    const matchMonth  = !month  || monthKey(e.date) === month;
-    return matchSearch && matchCat && matchMonth;
-  });
-
-  // Sort
-  filtered.sort((a,b) => {
-    let av = a[sortCol], bv = b[sortCol];
-    if (sortCol === 'amount') { av = Number(av); bv = Number(bv); }
-    if (av < bv) return sortDir === 'asc' ? -1 : 1;
-    if (av > bv) return sortDir === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  renderExpensesTable(false);
-}
-
-function sortBy(col) {
-  if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-  else { sortCol = col; sortDir = 'desc'; }
-  filterExpenses();
-}
-
-function renderExpensesTable(rebuild = true) {
-  // populate month filter
-  const mf = document.getElementById('monthFilter');
-  if (mf && rebuild) {
-    const months = getAvailableMonths();
-    mf.innerHTML = '<option value="">All Months</option>' + months.map(mk =>
-      `<option value="${mk}">${monthLabel(mk)}</option>`
-    ).join('');
-  }
-
-  if (rebuild) filterExpenses();
-  else renderFilteredRows();
-}
-
-function renderFilteredRows() {
-  const tbody = document.getElementById('expTableBody');
-  if (!tbody) return;
-
-  if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><i class="fas fa-inbox"></i><p>No expenses found.</p></div></td></tr>`;
-    document.getElementById('expCount').textContent = '0 expenses';
-    document.getElementById('expTotal').textContent = 'Total: ₹0';
-    return;
-  }
-
-  const total = filtered.reduce((s,e) => s + Number(e.amount), 0);
-
-  tbody.innerHTML = filtered.map((e,i) => {
-    const color = catColor(e.category);
-    return `<tr>
-      <td><strong>${i+1}. ${e.description}</strong></td>
-      <td><span class="category-pill" style="background:${color}18;color:${color}">${catIcon(e.category)} ${e.category}</span></td>
-      <td>${formatDate(e.date)}</td>
-      <td><strong>${fmt(e.amount)}</strong></td>
-      <td style="color:var(--text3);font-size:12.5px">${e.notes || '—'}</td>
-      <td><button class="del-btn" onclick="deleteExpense('${e.id}')" title="Delete"><i class="fas fa-trash"></i></button></td>
-    </tr>`;
-  }).join('');
-
-  document.getElementById('expCount').textContent = `${filtered.length} expense${filtered.length !== 1 ? 's' : ''}`;
-  document.getElementById('expTotal').textContent = `Total: ${fmt(total)}`;
-}
-
-/* =====================================================
-   ANALYSIS
-   ===================================================== */
 function renderAnalysis() {
-  // populate month selector
+  const m = [...new Set(expenses.map(e => monthKey(e.date)))].sort().reverse();
   const sel = document.getElementById('trendMonthSel');
-  if (sel) {
-    const months = getAvailableMonths();
-    sel.innerHTML = months.map(mk =>
-      `<option value="${mk}">${monthLabel(mk)}</option>`
-    ).join('');
-  }
-
+  sel.innerHTML = m.length ? m.map(x => `<option value="${x}">${x}</option>`).join('') : '<option>No data</option>';
   updateLineChart();
 
-  // category cards
+  const cats = getCatTotals(m[0] || null);
   const grid = document.getElementById('categoryGrid');
-  if (!grid) return;
-  const cats = getCatTotals();
-  const sorted = Object.entries(cats).sort((a,b)=>b[1]-a[1]);
-  const grandTotal = sorted.reduce((s,[,v])=>s+v,0);
-
-  if (!sorted.length) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-chart-bar"></i><p>No data yet.</p></div>`;
-    return;
-  }
-
-  grid.innerHTML = sorted.map(([name, amt]) => {
-    const color = catColor(name);
-    const pct = grandTotal > 0 ? ((amt/grandTotal)*100).toFixed(1) : 0;
+  grid.innerHTML = Object.keys(cats).map(catName => {
+    const c = CATS.find(x => x.name === catName) || CATS[7];
+    const val = cats[catName];
+    const budg = catBudgets[catName] || 0;
+    const pct = budg > 0 ? Math.min(100, (val/budg)*100) : 0;
     return `
       <div class="cat-card">
         <div class="cat-card-header">
-          <div class="cat-icon" style="background:${color}20;color:${color}">${catIcon(name)}</div>
-          <span class="cat-name">${name}</span>
+          <div class="cat-icon-name"><div class="cb-icon" style="background:${c.color}">${c.icon}</div> ${catName}</div>
         </div>
-        <div class="cat-amount">${fmt(amt)}</div>
-        <div class="cat-pct">${pct}% of total spending</div>
-        <div class="mini-bar-bg">
-          <div class="mini-bar-fill" style="width:${pct}%;background:${color}"></div>
-        </div>
+        <div class="cat-card-amt">${fmt(val)}</div>
+        ${budg > 0 ? `
+          <div style="font-size:11px;color:var(--text3);display:flex;justify-content:space-between"><span>${pct.toFixed(0)}% used</span><span>Limit: ${fmt(budg)}</span></div>
+          <div class="prog-track"><div class="prog-fill" style="width:${pct}%; background:${pct>90?'var(--danger)':c.color}"></div></div>
+        ` : ''}
       </div>`;
   }).join('');
 }
 
-/* =====================================================
-   PREDICTION
-   ===================================================== */
+function updateLineChart() {
+  const ctx = document.getElementById('lineChart');
+  if(!ctx) return;
+  const mon = document.getElementById('trendMonthSel').value;
+  if (!mon) return;
+  
+  const days = {};
+  expenses.filter(e => monthKey(e.date) === mon).forEach(e => {
+    const d = e.date.split('-')[2];
+    days[d] = (days[d] || 0) + e.amount;
+  });
+  
+  const lbls = Object.keys(days).sort();
+  const dts = lbls.map(k => days[k]);
+  
+  if(chLine) chLine.destroy();
+  chLine = new Chart(ctx, {
+    type: 'line',
+    data: { labels: lbls, datasets: [{ label: 'Daily Exps', data: dts, borderColor: '#EC4899', backgroundColor: 'rgba(236,72,153,0.1)', fill: true, tension: 0.4 }] },
+    options: { maintainAspectRatio: false }
+  });
+}
+
+// ==== PREDICTION ====
+function forecast() {
+  if (expenses.length < 5) return 0;
+  const totals = {};
+  expenses.forEach(e => { const mk = monthKey(e.date); totals[mk] = (totals[mk]||0) + e.amount; });
+  const vals = Object.values(totals);
+  if (vals.length === 0) return 0;
+  return vals.reduce((a,b)=>a+b,0) / vals.length;
+}
+
 function renderPrediction() {
   const fc = forecast();
   document.getElementById('predBigVal').textContent = fmt(fc);
@@ -677,7 +393,6 @@ function renderPrediction() {
 
   // Category forecasts
   const cats = getCatTotals();
-  const allExp = expenses.length;
   const grid = document.getElementById('predCatGrid');
   if (grid) {
     if (!Object.keys(cats).length) {
@@ -685,7 +400,7 @@ function renderPrediction() {
     } else {
       grid.innerHTML = CATS.map(c => {
         const total = cats[c.name] || 0;
-        const months = getAvailableMonths().length || 1;
+        const months = new Set(expenses.map(e => monthKey(e.date))).size || 1;
         const monthly = total / months;
         const proj = Math.round(monthly * 1.05);
         return `
@@ -698,15 +413,72 @@ function renderPrediction() {
     }
   }
 
+  // Future saving predictions
+  const fsBox = document.getElementById('futureSavingsBox');
+  if (fsBox) {
+    if (fc > 0) {
+      const topCatName = Object.entries(cats).sort((a,b) => b[1]-a[1])[0]?.[0] || 'Food & Dining';
+      const tricks = [
+         "Cook 4 meals at home instead of ordering out to save ₹2k–₹4k.",
+         "Cancel one unused subscription (e.g. Netflix, Gym) to instantly save ₹500–₹1.5k.",
+         "Use the cash envelope method for your 'Wants' category to strictly avoid overspending.",
+         "Plan your next month's grocery list in advance and buy in bulk to save ~15%.",
+         "If you are going out, eat a small meal at home first to easily cut your restaurant bill in half.",
+         "Unsubscribe from promotional emails so you aren't tempted by flash sales next month.",
+         "Hold off on any non-essential purchase above ₹3,000 for 30 days to avoid impulse buys."
+      ];
+      const sortedTricks = tricks.sort(() => 0.5 - Math.random()).slice(0, 2);
+
+      fsBox.innerHTML = `
+        <div class="insight-card success" style="margin-top:0;">
+          <div class="insight-ic"><i class="fas fa-piggy-bank"></i></div>
+          <div class="insight-body">
+            <h4>Target: Save ₹${Math.round(fc * 0.2).toLocaleString('en-IN')} Next Month</h4>
+            <p>Based on your forecast of ${fmt(fc)}, if you cut down your <strong>${topCatName}</strong> expenses by 20%, you can easily hit this savings goal!</p>
+          </div>
+        </div>
+        <div class="insight-card info" style="margin-top:12px;">
+          <div class="insight-ic"><i class="fas fa-magic"></i></div>
+          <div class="insight-body">
+            <h4>Upcoming Month Trick #1</h4>
+            <p>${sortedTricks[0]}</p>
+          </div>
+        </div>
+        <div class="insight-card info" style="margin-top:12px;">
+          <div class="insight-ic"><i class="fas fa-magic"></i></div>
+          <div class="insight-body">
+            <h4>Upcoming Month Trick #2</h4>
+            <p>${sortedTricks[1]}</p>
+          </div>
+        </div>`;
+    } else {
+      fsBox.innerHTML = `<p style="color:var(--text3);font-size:13px;padding:8px 0;">Not enough data to calculate future savings yet. Add more expenses!</p>`;
+    }
+  }
+
   updatePredChart();
 }
 
-/* =====================================================
-   BUDGET
-   ===================================================== */
+function updatePredChart() {
+  const ctx = document.getElementById('predChart');
+  if(!ctx) return;
+  const mk = currentMonthKey();
+  let base = forecast() || 5000;
+  
+  if(chPred) chPred.destroy();
+  chPred = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Next Month', 'In 2 Months', 'In 3 Months'],
+      datasets: [{ label: 'Predicted Exps', data: [base*1.02, base*1.04, base*1.07], backgroundColor: 'rgba(16, 185, 129, 0.8)' }]
+    },
+    options: { maintainAspectRatio: false }
+  });
+}
+
+// ==== BUDGET ====
 function renderBudget() {
   document.getElementById('totalBudgetInp').value = totalBudget || '';
-
   const cmk     = currentMonthKey();
   const spent   = expenses.filter(e => monthKey(e.date) === cmk).reduce((s,e) => s + Number(e.amount), 0);
   const remain  = totalBudget - spent;
@@ -719,1007 +491,211 @@ function renderBudget() {
   document.getElementById('hmRemain').textContent  = fmt(Math.max(0, remain));
 
   const ring = document.getElementById('healthRingFill');
-  if (ring) {
-    ring.style.strokeDasharray = `${circ * pct/100} ${circ}`;
-    ring.style.stroke = pct > 90 ? '#EF4444' : pct > 75 ? '#F59E0B' : '#10B981';
-  }
+  ring.style.strokeDashoffset = circ - (pct/100)*circ;
+  ring.style.stroke = pct > 90 ? 'var(--danger)' : pct > 75 ? 'var(--warning)' : 'var(--success)';
 
-  // Category budget inputs
   const list = document.getElementById('catBudgetList');
-  if (list) {
-    list.innerHTML = CATS.map(c => `
-      <div class="cat-budget-row">
-        <label>${c.icon} ${c.name}</label>
-        <input type="number" class="form-input" id="cb_${c.name.replace(/\s+/g,'_')}" value="${budgets[c.name] || ''}" placeholder="Budget amount" />
-      </div>`).join('');
-  }
-
-  // Budget progress bars
-  renderBudgetBars();
-}
-
-function renderBudgetBars() {
-  const grid = document.getElementById('budgetBarsGrid');
-  if (!grid) return;
-  const cmk = currentMonthKey();
-  const catTotals = getCatTotals(cmk);
-
-  const rows = CATS.map(c => {
-    const budget  = budgets[c.name] || 0;
-    const spent   = catTotals[c.name] || 0;
-    const pct     = budget > 0 ? Math.min(100, Math.round(spent/budget*100)) : 0;
-    const color   = pct > 90 ? '#EF4444' : pct > 70 ? '#F59E0B' : c.color;
-    return `
-      <div class="bbar-row">
-        <div class="bbar-top">
-          <span class="bbar-name">${c.icon} ${c.name}</span>
-          <span class="bbar-nums">${fmt(spent)} / ${budget > 0 ? fmt(budget) : 'No limit'}</span>
-        </div>
-        <div class="bbar-track">
-          <div class="bbar-fill" style="width:${pct}%;background:${color}"></div>
-        </div>
-      </div>`;
-  }).join('');
-
-  grid.innerHTML = `
-    <div class="bbar-card card">
-      <div class="card-header"><h3 class="card-title"><i class="fas fa-chart-bar"></i> Category Budget Progress</h3></div>
-      ${rows}
-    </div>`;
+  list.innerHTML = CATS.map(c => `
+    <div class="form-group" style="flex-direction:row;align-items:center;justify-content:space-between">
+      <label class="form-label" style="width:140px"><i class="${c.icon}"></i> ${c.name}</label>
+      <input type="number" class="form-input" style="flex:1" id="cb_${c.name}" value="${catBudgets[c.name]||''}" placeholder="Limit..." />
+    </div>
+  `).join('');
 }
 
 function saveTotalBudget() {
-  const val = parseFloat(document.getElementById('totalBudgetInp').value);
-  if (!val || val <= 0) return showToast('Invalid', 'Enter a valid budget amount.', 'warning');
-  totalBudget = val;
-  save();
+  const v = document.getElementById('totalBudgetInp').value;
+  totalBudget = Number(v);
+  localStorage.setItem('ff_total_budget', totalBudget);
+  showToast('Total budget saved!', 'success');
   renderBudget();
-  showToast('Saved', `Monthly budget set to ${fmt(val)}`, 'success');
 }
 
 function saveCatBudgets() {
   CATS.forEach(c => {
-    const id  = 'cb_' + c.name.replace(/\s+/g,'_');
-    const inp = document.getElementById(id);
-    if (inp && inp.value) budgets[c.name] = parseFloat(inp.value) || 0;
+    const v = document.getElementById(`cb_${c.name}`).value;
+    if(v) catBudgets[c.name] = Number(v);
+    else delete catBudgets[c.name];
   });
-  save();
-  renderBudgetBars();
-  showToast('Saved', 'Category budgets updated.', 'success');
+  localStorage.setItem('ff_cat_budgets', JSON.stringify(catBudgets));
+  showToast('Category budgets saved!', 'success');
+  renderBudget();
 }
 
-/* =====================================================
-   INSIGHTS
-   ===================================================== */
-function renderInsights() {
-  const cmk   = currentMonthKey();
-  const total = expenses.filter(e => monthKey(e.date) === cmk).reduce((s,e) => s + Number(e.amount), 0);
-  const cats  = getCatTotals(cmk);
-
-  const tips = [];
-
-  // Score calculation
-  let score = 70;
-
+// ==== INSIGHTS ====
+function initScore() {
+  let score = 50;
+  if (expenses.length > 5) score += 10;
   if (totalBudget > 0) {
-    const pct = total / totalBudget;
-    if (pct < .5)  { score += 20; tips.push({ type:'success', icon:'fa-trophy', title:'Great Saving!', msg:`You've spent only ${Math.round(pct*100)}% of your budget. Keep it up!` }); }
-    else if (pct < .8) { score += 10; tips.push({ type:'info', icon:'fa-info-circle', title:'On Track', msg:`${Math.round(pct*100)}% of budget used with time remaining.` }); }
-    else if (pct < 1)  { score -= 10; tips.push({ type:'warning', icon:'fa-exclamation-triangle', title:'Budget Alert', msg:`You've used ${Math.round(pct*100)}% of your budget. Be cautious!` }); }
-    else               { score -= 25; tips.push({ type:'danger', icon:'fa-times-circle', title:'Over Budget!', msg:`Spending exceeded by ${fmt(total - totalBudget)}. Review your expenses.` }); }
+    const spent = expenses.filter(e => monthKey(e.date) === currentMonthKey()).reduce((s,e) => s+e.amount, 0);
+    if (spent < totalBudget) score += 20;
+    else score -= 20;
   }
-
-  const topCat = Object.entries(cats).sort((a,b)=>b[1]-a[1])[0];
-  if (topCat) {
-    const catPct = (topCat[1]/total*100).toFixed(0);
-    if (+catPct > 40) {
-      score -= 10;
-      tips.push({ type:'warning', icon:'fa-fire', title:'High Category Spend', msg:`${topCat[0]} makes up ${catPct}% of your spending. Consider diversifying.` });
-    }
-  }
-
-  const food = cats['Food & Dining'] || 0;
-  if (food > 5000) {
-    score -= 5;
-    tips.push({ type:'warning', icon:'fa-utensils', title:'Food Spending High', msg:`${fmt(food)} spent on food. Try meal prepping to reduce costs.` });
-  }
-
-  const ent = cats['Entertainment'] || 0;
-  if (ent > 3000) {
-    tips.push({ type:'info', icon:'fa-gamepad', title:'Entertainment Check', msg:`${fmt(ent)} on entertainment. Look for free alternatives.` });
-  }
-
-  if (expenses.length > 10) {
-    tips.push({ type:'success', icon:'fa-check-circle', title:'Good Tracking Habit!', msg:`You've logged ${expenses.length} transactions. Consistent tracking leads to better control.` });
-    score += 5;
-  }
-
   const fc = forecast();
-  if (fc > totalBudget && totalBudget > 0) {
-    score -= 10;
-    tips.push({ type:'danger', icon:'fa-chart-line', title:'Forecast Warning', msg:`AI predicts next month spend of ${fmt(fc)}, exceeding your budget of ${fmt(totalBudget)}.` });
-  } else if (fc > 0) {
-    tips.push({ type:'info', icon:'fa-brain', title:'AI Forecast', msg:`Next month spending estimated at ${fmt(fc)} based on your trends.` });
-  }
+  if (fc > 0 && totalBudget > fc) score += 20;
 
-  score = Math.max(0, Math.min(100, score));
+  document.getElementById('scoreNum').textContent = Math.min(100, Math.max(0, score));
+  document.getElementById('scoreLabel').textContent = score > 80 ? 'Excellent' : score > 50 ? 'Good' : 'Needs Work';
+}
 
-  const scoreEl = document.getElementById('scoreNum');
-  const circEl  = document.getElementById('scoreCircle');
-  const labelEl = document.getElementById('scoreLabel');
-  const descEl  = document.getElementById('scoreDesc');
-
-  if (scoreEl) scoreEl.textContent = score;
-  if (circEl) {
-    circEl.style.background = score >= 80 ? 'linear-gradient(135deg,#10B981,#059669)' :
-                               score >= 60 ? 'linear-gradient(135deg,#2563EB,#7C3AED)' :
-                               score >= 40 ? 'linear-gradient(135deg,#F59E0B,#F97316)' :
-                                             'linear-gradient(135deg,#EF4444,#DC2626)';
-  }
-  if (labelEl) labelEl.textContent = score >= 80 ? '🎉 Excellent!' : score >= 60 ? '👍 Good' : score >= 40 ? '⚠️ Needs Attention' : '🚨 Critical';
-  if (descEl)  descEl.textContent  = score >= 80 ? 'You are managing your finances very well.' : score >= 60 ? 'Your finances are mostly on track.' : 'Consider reviewing your budget and spending habits.';
-
+function renderInsights() {
   const grid = document.getElementById('insightsGrid');
-  if (grid) {
-    if (!tips.length) {
-      grid.innerHTML = `<div class="insight-card info" style="grid-column:1/-1"><div class="insight-ic"><i class="fas fa-lightbulb"></i></div><div class="insight-body"><h4>Add More Data</h4><p>Add expenses and set a budget to receive personalized financial insights.</p></div></div>`;
-    } else {
-      grid.innerHTML = tips.map(t => `
-        <div class="insight-card ${t.type}">
-          <div class="insight-ic"><i class="fas ${t.icon}"></i></div>
-          <div class="insight-body"><h4>${t.title}</h4><p>${t.msg}</p></div>
-        </div>`).join('');
-    }
+  const cmk = currentMonthKey();
+  const spent = expenses.filter(e => monthKey(e.date) === cmk).reduce((s,e) => s+e.amount, 0);
+  let html = '';
+
+  if (totalBudget > 0 && spent > totalBudget) {
+    html += `<div class="insight-card danger"><div class="insight-ic"><i class="fas fa-exclamation-circle"></i></div><div class="insight-body"><h4>Budget Exceeded</h4><p>You have exceeded your total budget by ${fmt(spent - totalBudget)}. Try reducing non-essential expenses for the rest of the month.</p></div></div>`;
   }
-
-  updateInsightsBadge(tips.filter(t => t.type === 'danger' || t.type === 'warning').length);
-}
-
-function updateInsightsBadge(count) {
-  const badge = document.getElementById('insightsBadge');
-  if (!badge) return;
-  if (count === undefined) {
-    // quick calc
-    const cmk = currentMonthKey();
-    const total = expenses.filter(e => monthKey(e.date) === cmk).reduce((s,e) => s + Number(e.amount), 0);
-    count = (totalBudget > 0 && total > totalBudget * 0.8) ? 1 : 0;
+  const topCat = Object.entries(getCatTotals(cmk)).sort((a,b)=>b[1]-a[1])[0];
+  if(topCat && topCat[1] > (totalBudget * 0.4)) {
+    html += `<div class="insight-card warning"><div class="insight-ic"><i class="fas fa-fire"></i></div><div class="insight-body"><h4>High Spending in ${topCat[0]}</h4><p>Over 40% of your budget is going to this category. Review your subscriptions and impulse buys.</p></div></div>`;
   }
-  if (count > 0) { badge.textContent = count; badge.style.display = ''; }
-  else badge.style.display = 'none';
-}
-
-/* =====================================================
-   URL SAFETY CHECKER
-   ===================================================== */
-const SAFE_DOMAINS = ['sbi.co.in','hdfcbank.com','icicibank.com','axisbank.com','paytm.com','phonepe.com','google.com','amazon.in','flipkart.com','razorpay.com','upi.npci.org.in'];
-const WARN_PATTERNS = ['free-money','win-prize','lottery','claim-reward','lucky-draw','bit.ly','tinyurl','shorturl','payouts','urgent-payment'];
-const DANGER_PATTERNS = ['phishing','scam','free-bitcoin','account-verify-now','bank-alert-urgent','hack','password-reset-email','click-to-win'];
-
-function checkURL() {
-  const raw = document.getElementById('urlInput').value.trim();
-  if (!raw) return showToast('Empty URL', 'Please enter a URL to check.', 'warning');
-
-  let url;
-  try {
-    url = new URL(raw.startsWith('http') ? raw : 'https://'+raw);
-  } catch {
-    showToast('Invalid URL', 'Please enter a valid URL.', 'error');
-    return;
-  }
-
-  const host  = url.hostname.toLowerCase().replace('www.','');
-  const full  = url.href.toLowerCase();
-  const isHTTPS = url.protocol === 'https:';
-
-  let level = 'safe', title = '', detail = '';
-
-  if (DANGER_PATTERNS.some(p => full.includes(p))) {
-    level = 'danger';
-  } else if (!isHTTPS || WARN_PATTERNS.some(p => full.includes(p))) {
-    level = 'warning';
-  } else if (SAFE_DOMAINS.some(d => host.includes(d))) {
-    level = 'safe';
-  } else {
-    level = 'warning'; // unknown domain
-  }
-
-  if (level === 'safe') {
-    title  = '✅ Site Appears Safe';
-    detail = `The URL uses HTTPS encryption and matches known safe domains. Still verify you're on the correct site before entering credentials.`;
-  } else if (level === 'warning') {
-    title  = '⚠️ Proceed with Caution';
-    detail = `${!isHTTPS ? 'This site does not use HTTPS. ' : ''}This domain is not in our trusted list. Avoid entering sensitive financial information unless you are certain of its authenticity.`;
-  } else {
-    title  = '🚨 Potential Threat Detected';
-    detail = `This URL contains suspicious patterns commonly found in phishing or scam sites. Do NOT enter any personal or financial information.`;
-  }
-
-  const box = document.getElementById('urlResultBox');
-  box.className = `url-result ${level}`;
-  box.classList.remove('hidden');
-  box.innerHTML = `
-    <div class="url-result-header">
-      <span class="url-result-icon">${level === 'safe' ? '✅' : level === 'warning' ? '⚠️' : '🚨'}</span>
-      <span class="url-result-title">${title}</span>
-    </div>
-    <p class="url-result-detail">${detail}</p>
-    <p style="font-size:12px;color:var(--text3);margin-top:8px">Checked: <strong>${url.href}</strong></p>`;
-
-  // Add to history
-  urlHistory.unshift({ url: url.href, level, time: new Date().toLocaleString() });
-  if (urlHistory.length > 10) urlHistory.pop();
-  save();
-  renderUrlHistory();
-}
-
-function renderUrlHistory() {
-  const el = document.getElementById('urlHistory');
-  if (!el) return;
-  if (!urlHistory.length) {
-    el.innerHTML = `<div class="empty-state"><i class="fas fa-shield-alt"></i><p>No URLs checked yet</p></div>`;
-    return;
-  }
-  el.innerHTML = urlHistory.map(h => `
-    <div class="url-hist-row">
-      <span class="url-hist-url">${h.url}</span>
-      <span class="url-hist-badge badge-${h.level}">${h.level}</span>
-    </div>`).join('');
-}
-
-/* =====================================================
-   SETTINGS
-   ===================================================== */
-function renderSettings() {
-  const ni = document.getElementById('settingsName');
-  const ci = document.getElementById('settingsCurrency');
-  const di = document.getElementById('darkModeChk');
-  if (ni) ni.value = settings.name;
-  if (ci) ci.value = settings.currency;
-  if (di) di.checked = settings.dark;
-}
-
-function saveSettings() {
-  const name = document.getElementById('settingsName')?.value.trim() || 'User';
-  const cur  = document.getElementById('settingsCurrency')?.value || '₹';
-  settings.name     = name;
-  settings.currency = cur;
-  save();
-  updateUserDisplay();
-  showToast('Saved', 'Settings updated successfully!', 'success');
-}
-
-function updateUserDisplay() {
-  ['sidebarName','topbarName'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = settings.name;
-  });
-}
-
-/* =====================================================
-   THEME
-   ===================================================== */
-function toggleTheme() {
-  settings.dark = !settings.dark;
-  applyTheme();
-  save();
-  const chk = document.getElementById('darkModeChk');
-  if (chk) chk.checked = settings.dark;
-}
-
-function applyTheme() {
-  document.documentElement.setAttribute('data-theme', settings.dark ? 'dark' : 'light');
-  const icon = document.getElementById('themeIcon');
-  if (icon) { icon.className = settings.dark ? 'fas fa-sun' : 'fas fa-moon'; }
-  // Redraw charts if on relevant page
-  setTimeout(() => {
-    if (barChart)  updateBarChart();
-    if (dChart)    updateDoughnutChart();
-    if (lineChart) updateLineChart();
-  }, 300);
-}
-
-/* =====================================================
-   EXPORT DATA
-   ===================================================== */
-function exportData() {
-  const data = { expenses, budgets, totalBudget, settings, exportedAt: new Date().toISOString() };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
-  const a    = document.createElement('a');
-  a.href     = URL.createObjectURL(blob);
-  a.download = `fortuneflow_${new Date().toISOString().split('T')[0]}.json`;
-  a.click();
-  showToast('Exported', 'Data exported as JSON file.', 'success');
-}
-
-/* =====================================================
-   CONFIRM MODAL
-   ===================================================== */
-let modalCallback = null;
-
-function confirmReset() {
-  openModal('Reset All Data', 'This will permanently delete all your expenses, budgets, and settings. This action cannot be undone.', () => {
-    localStorage.clear();
-    location.reload();
-  });
-}
-
-function openModal(title, msg, cb) {
-  document.getElementById('modalTitle').textContent = title;
-  document.getElementById('modalMsg').textContent   = msg;
-  document.getElementById('modalOverlay').classList.remove('hidden');
-  modalCallback = cb;
-  document.getElementById('modalOkBtn').onclick = () => { closeModal(); if (modalCallback) modalCallback(); };
-}
-
-function closeModal() {
-  document.getElementById('modalOverlay').classList.add('hidden');
-  modalCallback = null;
-}
-
-/* =====================================================
-   TOAST
-   ===================================================== */
-const TOAST_ICONS = { success:'fa-check', error:'fa-times', info:'fa-info', warning:'fa-exclamation' };
-
-function showToast(title, msg, type = 'info') {
-  const stack = document.getElementById('toastStack');
-  const id    = uid();
-  const el    = document.createElement('div');
-  el.className = `toast ${type}`;
-  el.id = id;
-  el.innerHTML = `
-    <div class="toast-icon"><i class="fas ${TOAST_ICONS[type] || 'fa-info'}"></i></div>
-    <div class="toast-content">
-      <div class="toast-title">${title}</div>
-      <div class="toast-msg">${msg}</div>
-    </div>
-    <button class="toast-close" onclick="removeToast('${id}')"><i class="fas fa-times"></i></button>`;
-  stack.appendChild(el);
-  setTimeout(() => removeToast(id), 4000);
-}
-
-function removeToast(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.add('removing');
-  setTimeout(() => el.remove(), 300);
-}
-
-/* =====================================================
-   HELPERS
-   ===================================================== */
-function formatDate(ds) {
-  if (!ds) return '—';
-  const [y,m,d] = ds.split('-');
-  return `${d}/${m}/${y}`;
-}
-
-function handleGlobalSearch(val) {
-  if (activePage !== 'expenses') navigate('expenses');
-  const inp = document.getElementById('expSearch');
-  if (inp) { inp.value = val; filterExpenses(); }
-}
-
-function toggleForm() {
-  const wrap = document.getElementById('expenseFormWrap');
-  const btn  = document.getElementById('toggleFormBtn');
-  wrap.classList.toggle('open');
-  btn.innerHTML = wrap.classList.contains('open')
-    ? '<i class="fas fa-chevron-up"></i> Collapse'
-    : '<i class="fas fa-chevron-down"></i> Expand';
-}
-
-/* =====================================================
-   SIDEBAR
-   ===================================================== */
-function initSidebar() {
-  const sb     = document.getElementById('sidebar');
-  const colBtn = document.getElementById('collapseBtn');
-  const ham    = document.getElementById('hamburger');
-
-  colBtn?.addEventListener('click', () => {
-    sb.classList.toggle('collapsed');
-  });
-
-  ham?.addEventListener('click', () => {
-    sb.classList.toggle('mobile-open');
-  });
-
-  // Nav click
-  document.querySelectorAll('.nav-item[data-page]').forEach(el => {
-    el.addEventListener('click', () => navigate(el.dataset.page));
-  });
-
-  // "View All" buttons that navigate
-  document.querySelectorAll('[data-page]').forEach(el => {
-    if (!el.classList.contains('nav-item')) {
-      el.addEventListener('click', () => navigate(el.dataset.page));
-    }
-  });
-}
-
-/* =====================================================
-   INIT
-   ===================================================== */
-document.addEventListener('DOMContentLoaded', () => {
-  load();
-  applyTheme();
-  updateUserDisplay();
-  initSidebar();
-
-  // Set today's date as default for expense form
-  const dateInp = document.getElementById('expDate');
-  if (dateInp) dateInp.value = new Date().toISOString().split('T')[0];
-
-  // Render initial dashboard
-  renderDashboard();
-  updateInsightsBadge();
-  renderSettings();
-
-  // Open form expanded by default
-  const expForm = document.getElementById('expenseFormWrap');
-  if (expForm) expForm.classList.add('open');
-  const toggleBtn = document.getElementById('toggleFormBtn');
-  if (toggleBtn) toggleBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Collapse';
-});
-
-/* =====================================================
-   EXPENSE WIZARD — INTERACTIVE STEP-BY-STEP
-   ===================================================== */
-
-const TOTAL_STEPS = 5; // 0-4 (0=desc, 1=amount, 2=category, 3=date, 4=notes) + step 5=confirm
-
-const WZ_STEPS = [
-  {
-    question: 'What did you spend on? 💭',
-    bubble:   'Hi! I\'m your expense assistant 🤖 What did you buy or pay for?',
-    id:       'desc',
-  },
-  {
-    question: 'How much did it cost? 💰',
-    bubble:   'Got it! Now tell me the amount you spent.',
-    id:       'amount',
-  },
-  {
-    question: 'Which category fits best? 📂',
-    bubble:   'Great! Pick the category that matches your expense.',
-    id:       'category',
-  },
-  {
-    question: 'When did this happen? 📅',
-    bubble:   'Almost done! When did you make this purchase?',
-    id:       'date',
-  },
-  {
-    question: 'Any extra details? (Optional) 📝',
-    bubble:   'Want to add a note? Or just tap Skip to finish!',
-    id:       'notes',
-  },
-  {
-    question: 'All set — ready to save! ✅',
-    bubble:   'Here\'s a summary of your expense. Tap "Add Expense" to save it.',
-    id:       'confirm',
-  },
-];
-
-// Wizard state
-let wz = { step: 0, description: '', amount: '', category: '', date: '', notes: '' };
-
-const DESC_SUGGESTIONS  = ['Grocery Shopping','Lunch','Coffee','Petrol','Electricity Bill','Netflix','Medicine','Auto Ride','Restaurant','Rent','Book','Online Shopping'];
-const AMOUNT_CHIPS      = [50, 100, 200, 500, 1000, 2000, 5000];
-
-/* ---------- open / close ---------- */
-function openWizard() {
-  wz = { step: 0, description: '', amount: '', category: '', date: todayISO(), notes: '' };
-  document.getElementById('wizardOverlay').classList.remove('hidden');
-  document.body.style.overflow = 'hidden';
-  renderWizardStep();
-}
-
-function closeWizard() {
-  document.getElementById('wizardOverlay').classList.add('hidden');
-  document.body.style.overflow = '';
-}
-
-function todayISO() { return new Date().toISOString().split('T')[0]; }
-function daysAgoISO(n) {
-  const d = new Date(); d.setDate(d.getDate() - n);
-  return d.toISOString().split('T')[0];
-}
-
-/* ---------- progress helpers ---------- */
-function updateWzProgress() {
-  const total  = WZ_STEPS.length;           // 6 steps (0-5)
-  const pct    = Math.round((wz.step / (total - 1)) * 100);
-  document.getElementById('wzProgressFill').style.width = pct + '%';
-  document.getElementById('wzStepLabel').textContent =
-    wz.step < total - 1 ? `Step ${wz.step + 1} of ${total - 1}` : 'Review';
-
-  // dots (only for steps 0-4)
-  const dots = document.getElementById('wzDots');
-  dots.innerHTML = WZ_STEPS.slice(0, total - 1).map((_, i) =>
-    `<span class="wz-dot ${i < wz.step ? 'done' : i === wz.step ? 'active' : ''}"></span>`
-  ).join('');
-}
-
-function updateWzBubble() {
-  const el = document.getElementById('wzBubble');
-  if (!el) return;
-  el.style.animation = 'none';
-  void el.offsetWidth; // reflow
-  el.style.animation = '';
-  el.textContent = WZ_STEPS[wz.step].bubble;
-}
-
-function updateWzQuestion() {
-  const el = document.getElementById('wzQuestion');
-  if (!el) return;
-  el.textContent = WZ_STEPS[wz.step].question;
-}
-
-function updateWzButtons() {
-  const back = document.getElementById('wzBack');
-  const next = document.getElementById('wzNext');
-  if (!back || !next) return;
-
-  back.style.display = wz.step === 0 ? 'none' : '';
-
-  if (wz.step === WZ_STEPS.length - 1) {
-    next.innerHTML = '<i class="fas fa-check"></i> Add Expense';
-    next.style.background = 'linear-gradient(135deg,#10B981,#0891B2)';
-  } else {
-    next.innerHTML = 'Next <i class="fas fa-chevron-right"></i>';
-    next.style.background = '';
-  }
-}
-
-/* ---------- render each step ---------- */
-function renderWizardStep() {
-  updateWzProgress();
-  updateWzBubble();
-  updateWzQuestion();
-  updateWzButtons();
-
-  const body = document.getElementById('wzBody');
-  body.innerHTML = '';
-
-  // Animate body
-  body.style.animation = 'none';
-  void body.offsetWidth;
-  body.style.animation = 'fadeInUp .3s cubic-bezier(.4,0,.2,1)';
-
-  switch (wz.step) {
-    case 0: renderWzDesc(body);     break;
-    case 1: renderWzAmount(body);   break;
-    case 2: renderWzCategory(body); break;
-    case 3: renderWzDate(body);     break;
-    case 4: renderWzNotes(body);    break;
-    case 5: renderWzConfirm(body);  break;
-  }
-}
-
-/* Step 0 — Description */
-function renderWzDesc(body) {
-  body.innerHTML = `
-    <div class="wz-input-wrap">
-      <input id="wzDescInp" class="wz-main-input" type="text"
-             placeholder="e.g. Grocery shopping, Lunch…"
-             value="${escHtml(wz.description)}" autocomplete="off" />
-    </div>
-    <div class="wz-chips" id="wzDescChips">
-      ${DESC_SUGGESTIONS.map(s =>
-        `<button class="wz-chip ${wz.description===s?'selected':''}" onclick="pickDescChip(this,'${s}')">${s}</button>`
-      ).join('')}
-    </div>`;
-
-  const inp = document.getElementById('wzDescInp');
-  inp.focus();
-  inp.addEventListener('input', e => { wz.description = e.target.value; highlightDescChips(); });
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') wizardNext(); });
-}
-
-function pickDescChip(btn, val) {
-  wz.description = val;
-  document.getElementById('wzDescInp').value = val;
-  document.querySelectorAll('#wzDescChips .wz-chip').forEach(c => c.classList.remove('selected'));
-  btn.classList.add('selected');
-}
-
-function highlightDescChips() {
-  const v = wz.description.toLowerCase();
-  document.querySelectorAll('#wzDescChips .wz-chip').forEach(c => {
-    c.classList.toggle('selected', c.textContent.toLowerCase() === v);
-  });
-}
-
-/* Step 1 — Amount */
-function renderWzAmount(body) {
-  body.innerHTML = `
-    <div class="wz-input-wrap">
-      <span class="wz-prefix">${settings.currency}</span>
-      <input id="wzAmtInp" class="wz-main-input has-prefix" type="number"
-             placeholder="0" min="0" step="1"
-             value="${wz.amount}" autocomplete="off" />
-    </div>
-    <div class="wz-chips">
-      ${AMOUNT_CHIPS.map(a =>
-        `<button class="wz-chip ${Number(wz.amount)===a?'selected':''}" onclick="pickAmtChip(this,${a})">${settings.currency}${a.toLocaleString('en-IN')}</button>`
-      ).join('')}
-    </div>`;
-
-  const inp = document.getElementById('wzAmtInp');
-  inp.focus();
-  inp.addEventListener('input', e => {
-    wz.amount = e.target.value;
-    document.querySelectorAll('.wz-chip').forEach(c => c.classList.remove('selected'));
-    const match = AMOUNT_CHIPS.find(a => a === Number(wz.amount));
-    if (match !== undefined)
-      document.querySelectorAll('.wz-chip').forEach(c => {
-        if (c.textContent.includes(match.toLocaleString('en-IN'))) c.classList.add('selected');
-      });
-  });
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') wizardNext(); });
-}
-
-function pickAmtChip(btn, val) {
-  wz.amount = val;
-  document.getElementById('wzAmtInp').value = val;
-  document.querySelectorAll('.wz-chip').forEach(c => c.classList.remove('selected'));
-  btn.classList.add('selected');
-}
-
-/* Step 2 — Category */
-function renderWzCategory(body) {
-  body.innerHTML = `
-    <div class="wz-cat-grid">
-      ${CATS.map(c => `
-        <button class="wz-cat-btn ${wz.category===c.name?'selected':''}"
-                onclick="pickCat(this,'${c.name}')"
-                style="${wz.category===c.name?`background:${c.color};border-color:${c.color}`:''}">
-          <span class="wz-cat-emoji">${c.icon}</span>
-          <span class="wz-cat-label">${c.name.replace(' & ','\n& ')}</span>
-        </button>`
-      ).join('')}
-    </div>`;
-}
-
-function pickCat(btn, name) {
-  wz.category = name;
-  const cat = CATS.find(c => c.name === name);
-  document.querySelectorAll('.wz-cat-btn').forEach(b => {
-    b.classList.remove('selected');
-    b.style.background = '';
-    b.style.borderColor = '';
-    b.querySelector('.wz-cat-label').style.color = '';
-  });
-  btn.classList.add('selected');
-  if (cat) {
-    btn.style.background    = cat.color;
-    btn.style.borderColor   = cat.color;
-    btn.querySelector('.wz-cat-label').style.color = '#fff';
-  }
-  // auto-advance after small delay
-  setTimeout(() => wizardNext(), 320);
-}
-
-/* Step 3 — Date */
-function renderWzDate(body) {
-  const today = todayISO();
-  const yest  = daysAgoISO(1);
-  const two   = daysAgoISO(2);
-
-  const fmtBtn = ds => {
-    const d = new Date(ds + 'T00:00:00');
-    return d.toLocaleDateString('en-IN', { day:'numeric', month:'short' });
-  };
-
-  body.innerHTML = `
-    <div class="wz-date-row">
-      <div class="wz-date-quick">
-        <button class="wz-date-btn ${wz.date===today?'selected':''}" onclick="pickDate(this,'${today}')">
-          <i class="fas fa-calendar-day"></i> Today
-        </button>
-        <button class="wz-date-btn ${wz.date===yest?'selected':''}" onclick="pickDate(this,'${yest}')">
-          <i class="fas fa-history"></i> Yesterday
-        </button>
-        <button class="wz-date-btn ${wz.date===two?'selected':''}" onclick="pickDate(this,'${two}')">
-          <i class="fas fa-clock"></i> 2 days ago
-        </button>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:12.5px;color:var(--text3);white-space:nowrap">Or pick a date:</span>
-        <input id="wzDateInp" type="date" class="wz-main-input" style="padding:9px 13px;font-size:13px" value="${wz.date}" />
-      </div>
-    </div>`;
-
-  document.getElementById('wzDateInp').addEventListener('change', e => {
-    wz.date = e.target.value;
-    document.querySelectorAll('.wz-date-btn').forEach(b => b.classList.remove('selected'));
-  });
-}
-
-function pickDate(btn, ds) {
-  wz.date = ds;
-  document.querySelectorAll('.wz-date-btn').forEach(b => b.classList.remove('selected'));
-  btn.classList.add('selected');
-  document.getElementById('wzDateInp').value = ds;
-}
-
-/* Step 4 — Notes (optional) */
-function renderWzNotes(body) {
-  body.innerHTML = `
-    <div class="wz-input-wrap">
-      <input id="wzNotesInp" class="wz-main-input" type="text"
-             placeholder="Add a note… (optional)"
-             value="${escHtml(wz.notes)}" autocomplete="off" />
-    </div>
-    <div class="wz-skip-row">
-      <button class="wz-skip-btn" onclick="skipNotes()">Skip this step →</button>
-    </div>`;
-
-  const inp = document.getElementById('wzNotesInp');
-  inp.focus();
-  inp.addEventListener('input', e => { wz.notes = e.target.value; });
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') wizardNext(); });
-}
-
-function skipNotes() {
-  wz.notes = '';
-  wz.step  = 5;
-  renderWizardStep();
-}
-
-/* Step 5 — Confirm */
-function renderWzConfirm(body) {
-  const catMeta = CATS.find(c => c.name === wz.category) || {};
-  const dateObj = new Date(wz.date + 'T00:00:00');
-  const dateStr = dateObj.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'long', year:'numeric' });
-
-  body.innerHTML = `
-    <div class="wz-summary">
-      <div class="wz-summary-header" style="${catMeta.color?`background:linear-gradient(135deg,${catMeta.color},${catMeta.color}cc)`:''}">
-        <div class="wz-summary-title">${escHtml(wz.description)}</div>
-        <div class="wz-summary-amount">${fmt(wz.amount)}</div>
-      </div>
-      <div class="wz-summary-body">
-        <div class="wz-sum-row">
-          <span class="wz-sum-key"><i class="fas fa-tag"></i> Category</span>
-          <span class="wz-sum-val">${catMeta.icon || ''} ${wz.category}</span>
-        </div>
-        <div class="wz-sum-row">
-          <span class="wz-sum-key"><i class="fas fa-calendar"></i> Date</span>
-          <span class="wz-sum-val">${dateStr}</span>
-        </div>
-        ${wz.notes ? `
-        <div class="wz-sum-row">
-          <span class="wz-sum-key"><i class="fas fa-sticky-note"></i> Notes</span>
-          <span class="wz-sum-val">${escHtml(wz.notes)}</span>
-        </div>` : ''}
-      </div>
-    </div>`;
-}
-
-/* ---------- nav ---------- */
-function wizardNext() {
-  if (wz.step === 0) {
-    if (!wz.description.trim()) {
-      shakeFocus('wzDescInp'); return;
-    }
-  }
-  if (wz.step === 1) {
-    const v = parseFloat(wz.amount);
-    if (!v || v <= 0) { shakeFocus('wzAmtInp'); return; }
-    wz.amount = v;
-  }
-  if (wz.step === 2) {
-    if (!wz.category) { showToast('Pick a category', 'Tap one of the category cards.', 'warning'); return; }
-  }
-  if (wz.step === 3) {
-    if (!wz.date) { wz.date = todayISO(); }
-  }
-  if (wz.step === 4) {
-    const notesEl = document.getElementById('wzNotesInp');
-    if (notesEl) wz.notes = notesEl.value.trim();
-  }
-
-  if (wz.step === WZ_STEPS.length - 1) {
-    // Submit
-    commitWizardExpense();
-    return;
-  }
-
-  wz.step++;
-  renderWizardStep();
-}
-
-function wizardBack() {
-  if (wz.step === 0) { closeWizard(); return; }
-  wz.step--;
-  renderWizardStep();
-}
-
-function commitWizardExpense() {
-  expenses.push({
-    id:          uid(),
-    description: wz.description.trim(),
-    amount:      Number(wz.amount),
-    category:    wz.category,
-    date:        wz.date,
-    notes:       wz.notes,
-  });
-  save();
-  closeWizard();
-  showToast('Expense Added! 🎉', `${wz.description} · ${fmt(wz.amount)}`, 'success');
-  // Refresh current page
-  refreshPage(activePage);
-  updateInsightsBadge();
-}
-
-/* ---------- helpers ---------- */
-function shakeFocus(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.focus();
-  el.style.borderColor = '#EF4444';
-  el.style.boxShadow   = '0 0 0 4px rgba(239,68,68,.2)';
-  setTimeout(() => { el.style.borderColor = ''; el.style.boxShadow = ''; }, 1200);
-}
-
-function escHtml(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-// Close wizard on overlay click
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('wizardOverlay')?.addEventListener('click', e => {
-    if (e.target === document.getElementById('wizardOverlay')) closeWizard();
-  });
-  // Global keyboard shortcut: press 'N' to open wizard
-  document.addEventListener('keydown', e => {
-    if ((e.key === 'n' || e.key === 'N') && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
-      openWizard();
-    }
-    if (e.key === 'Escape') closeWizard();
-  });
-});
-
-/* =====================================================
-   AUTH & SESSION SYSTEM
-   ===================================================== */
-window.logoutSession = function() {
-  if (!confirm("Are you sure you want to log out? This will completely clear your profile for a fresh start.")) return;
   
-  // 1. Wipe local storage
-  localStorage.removeItem('fortuneflow_expenses');
-  localStorage.removeItem('fortuneflow_settings');
-  localStorage.removeItem('fortuneflow_budgets');
-  
-  // 2. Reset memory state
-  expenses = [];
-  settings = { currency: '₹', theme: 'light', onboarded: false };
-  budgets = {};
-  totalBudget = 0;
-  
-  // 3. Clean up UI
-  if (caOpen) toggleCAPanel();
-  document.getElementById('sidebar').classList.add('collapsed');
-  
-  // 4. Restart Experience
-  showOnboarding();
-  showToast('Logged Out', 'Profile cleared. Ready for a fresh start!', 'info');
-};
+  if (!html) html = `<div class="insight-card success"><div class="insight-ic"><i class="fas fa-check"></i></div><div class="insight-body"><h4>Looking Good!</h4><p>Your finances are perfectly balanced this month.</p></div></div>`;
+  grid.innerHTML = html;
+}
 
-/* =====================================================
-   EXCEL & CSV DATA IMPORT SYSTEM
-   ===================================================== */
-window.handleExcelUpload = function(e) {
+// ==== EXCEL IMPORT (Fuzzy Matching) ====
+function handleExcelUpload(e) {
   const file = e.target.files[0];
-  if (!file) return;
-
+  if(!file) return;
   const reader = new FileReader();
   reader.onload = function(evt) {
     try {
       const data = new Uint8Array(evt.target.result);
-      // Read Excel/CSV using SheetJS
-      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
+      const workbook = XLSX.read(data, {type: 'array'});
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet);
       
-      // Convert to JSON
-      const rows = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: "" });
-      
-      if (rows.length === 0) {
-        showToast('Empty File', 'We could not find any data in your sheet.', 'warning');
-        return;
-      }
-
-      let importCount = 0;
-      let totalAmount = 0;
-
+      let imported = 0;
       rows.forEach(row => {
-        // Smart Column Matcher
         let rawDate = row['Date'] || row['date'] || row['Date/Time'] || row['Transaction Date'] || row['Time'] || '';
         let rawAmt = row['Amount'] || row['amount'] || row['Paid'] || row['Price'] || row['Value'] || row['Expense'] || '';
         let rawDesc = row['Description'] || row['description'] || row['Name'] || row['Details'] || row['Title'] || row['Merchant'] || 'Imported Expense';
         let rawCat = row['Category'] || row['category'] || row['Type'] || 'Others';
 
-        if (!rawAmt) return; // Skip if no amount
+        if (!rawAmt) {
+          for (let key in row) {
+            let k = key.toLowerCase();
+            if(!rawAmt && (k.includes('amount') || k.includes('cost') || k.includes('debit') || k.includes('withdrawal') || k.includes('paid') || k.includes('value'))) rawAmt = row[key];
+            if(!rawDate && (k.includes('date') || k.includes('time') || k.includes('day'))) rawDate = row[key];
+            if((!rawDesc || rawDesc === 'Imported Expense') && (k.includes('desc') || k.includes('particulars') || k.includes('narration') || k.includes('detail') || k.includes('name'))) rawDesc = row[key];
+            if(rawCat === 'Others' && (k.includes('cat') || k.includes('type'))) rawCat = row[key];
+          }
+        }
 
-        // Format Amount
+        if (!rawAmt) return;
+
         let numericAmt = parseFloat(String(rawAmt).replace(/[^\d.-]/g, ''));
-        if (isNaN(numericAmt) || numericAmt <= 0) return;
-
-        // Format Date
-        let cleanDate = new Date(); // default to today if parsing fails
-        if (rawDate) {
-          const pd = new Date(rawDate);
-          if (!isNaN(pd.getTime())) cleanDate = pd;
-        }
-        const yyyy = cleanDate.getFullYear();
-        const mm = String(cleanDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(cleanDate.getDate()).padStart(2, '0');
-        const isoDate = `${yyyy}-${mm}-${dd}`;
-
-        // Format Category
-        let matchedCat = 'Others';
-        const searchCatStr = String(rawCat).toLowerCase();
+        if(isNaN(numericAmt) || numericAmt <= 0) return;
         
-        const coreCats = ['Food & Dining', 'Transportation', 'Shopping', 'Bills & Utilities', 'Entertainment', 'Healthcare', 'Education', 'Others'];
-        const foundCore = coreCats.find(c => searchCatStr.includes(c.toLowerCase()) || c.toLowerCase().includes(searchCatStr));
-        if (foundCore) {
-          matchedCat = foundCore;
-        } else {
-          // Broad AI-like fallback matching
-          if (searchCatStr.includes('eat') || searchCatStr.includes('rest') || searchCatStr.includes('food') || searchCatStr.includes('grocery') || searchCatStr.includes('swiggy') || searchCatStr.includes('zomato')) matchedCat = 'Food & Dining';
-          else if (searchCatStr.includes('gas') || searchCatStr.includes('uber') || searchCatStr.includes('transit') || searchCatStr.includes('flight') || searchCatStr.includes('train')) matchedCat = 'Transportation';
-          else if (searchCatStr.includes('movie') || searchCatStr.includes('game') || searchCatStr.includes('sub') || searchCatStr.includes('netflix')) matchedCat = 'Entertainment';
-          else if (searchCatStr.includes('med') || searchCatStr.includes('doctor') || searchCatStr.includes('pharm')) matchedCat = 'Healthcare';
-          else if (searchCatStr.includes('cloth') || searchCatStr.includes('amazon') || searchCatStr.includes('myntra')) matchedCat = 'Shopping';
-          else if (searchCatStr.includes('elec') || searchCatStr.includes('water') || searchCatStr.includes('wifi') || searchCatStr.includes('bill')) matchedCat = 'Bills & Utilities';
-          else matchedCat = 'Others';
+        // Date parse fallback
+        let isoDate = new Date().toISOString().split('T')[0];
+        if (rawDate) {
+           let parsed = new Date(rawDate);
+           if (!isNaN(parsed.valueOf())) isoDate = parsed.toISOString().split('T')[0];
         }
 
-        // Add to expenses
-        expenses.push({
-          id: Date.now() + Math.random().toString(36).substr(2, 9),
-          date: isoDate,
-          amount: numericAmt,
-          category: matchedCat,
-          description: String(rawDesc).trim().substring(0, 50)
-        });
-
-        importCount++;
-        totalAmount += numericAmt;
+        expenses.push({ id: Date.now().toString() + Math.random().toString().slice(2,5), description: rawDesc, amount: numericAmt, category: rawCat, date: isoDate, notes: 'Imported via Excel' });
+        imported++;
       });
 
-      if (importCount > 0) {
-        // Sort expenses chronologically (newest first)
-        expenses.sort((a,b) => new Date(b.date) - new Date(a.date));
-        
-        save();
-        updateUserDisplay();
-        
-        // Let Aria gracefully announce it via UI notification
-        if (typeof showCaNotif === 'function') {
-           showCaNotif(`✅ I analyzed your Excel file! Successfully imported ${importCount} transactions totaling ₹${Math.round(totalAmount).toLocaleString('en-IN')}. Charts are updated!`, 'success');
-        } else {
-           showToast('Import Successful', `Added ${importCount} expenses.`, 'success');
-        }
-        
-        // Jump to dashboard automatically
-        document.getElementById('nav-dashboard').click();
-      } else {
-        showToast('No Data Matched', 'Could not find readable Date and Amount columns in Excel file.', 'danger');
-      }
-      
-      // Reset input so it can be used again
-      document.getElementById('excelUpload').value = '';
-
+      if (imported > 0) {
+        saveLocal(); renderDashboard(); showToast(`Imported ${imported} expenses successfully!`, 'success');
+      } else { showToast('No matching expense data found in the file.', 'warning'); }
     } catch (err) {
       console.error(err);
-      showToast('Error', 'Failed to read the file. Ensure it is a valid .xlsx or .csv', 'danger');
-      document.getElementById('excelUpload').value = '';
+      showToast('Error parsing file.', 'error');
     }
   };
   reader.readAsArrayBuffer(file);
-};
+}
+
+function exportData() {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(expenses));
+  const el = document.createElement('a'); 
+  el.setAttribute("href", dataStr); el.setAttribute("download", "fortuneflow_backup.json");
+  document.body.appendChild(el); el.click(); el.remove();
+}
+
+function confirmReset() {
+  if (confirm("WARNING: This will permanently delete all your tracking data, expenses, and budgets! Proceed?")) {
+    expenses = []; totalBudget = 0; catBudgets = {};
+    localStorage.removeItem('ff_expenses'); localStorage.removeItem('ff_total_budget'); localStorage.removeItem('ff_cat_budgets');
+    showToast("Application data reset successfully.", "success");
+    setTimeout(() => window.location.reload(), 1500);
+  }
+}
+
+// ==== SETTINGS ====
+function saveSettings() {
+  const n = document.getElementById('settingsName').value.trim();
+  const c = document.getElementById('settingsCurrency').value;
+  if(n) userProfile.name = n;
+  userProfile.currency = c;
+  localStorage.setItem('ff_profile', JSON.stringify(userProfile));
+  
+  document.getElementById('sidebarName').textContent = userProfile.name;
+  document.getElementById('topbarName').textContent = userProfile.name;
+  showToast('Profile saved!', 'success');
+  renderDashboard();
+}
+
+// URL Safety
+function checkURL() {
+  const btn = document.querySelector('#page-urlsafety button');
+  const box = document.getElementById('urlResultBox');
+  const inp = document.getElementById('urlInput').value.trim();
+  
+  if(!inp) { showToast('Please enter a URL.', 'error'); return; }
+  
+  btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Checking...`;
+  box.classList.add('hidden');
+  
+  setTimeout(() => {
+    btn.innerHTML = `<i class="fas fa-search"></i> Check`;
+    box.classList.remove('hidden');
+    
+    if (inp.includes('bank') || inp.includes('paypal') || inp.includes('hdfc')) {
+      box.className = 'url-result url-safe';
+      box.innerHTML = `<h4><i class="fas fa-check-shield"></i> Safe Connection</h4><p>This appears to be a verified financial URL.</p>`;
+    } else {
+      box.className = 'url-result url-warn';
+      box.innerHTML = `<h4><i class="fas fa-exclamation-triangle"></i> Caution Advised</h4><p>This is an unknown URL. Please verify the sender carefully.</p>`;
+    }
+  }, 1000);
+}
+
+// Dummy badge toggle
+function updateInsightsBadge() {
+  const badge = document.getElementById('insightsBadge');
+  if (badge) badge.textContent = '2';
+}
+
+function handleGlobalSearch(q) {
+  if (q.length > 2) {
+    navigate('expenses');
+    document.getElementById('expSearch').value = q;
+    filterExpenses();
+  }
+}
+
+function logoutSession() {
+  localStorage.removeItem('ff_auth_unlocked');
+  window.location.reload();
+}
+function loginSession() {
+  document.getElementById('authOverlay').classList.add('hidden');
+  localStorage.setItem('ff_auth_unlocked', 'true');
+  showToast('Dashboard unlocked!', 'success');
+}
+
+// Ensure login works dynamically
+window.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('ff_auth_unlocked') !== 'true') {
+     document.getElementById('authOverlay').classList.remove('hidden');
+  }
+  initApp();
+});

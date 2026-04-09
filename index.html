@@ -12,8 +12,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
   <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="extra.css" />
-  <link rel="stylesheet" href="theme.css" />
 </head>
 <body>
 <div class="app-wrapper">
@@ -24,7 +22,7 @@
       <div class="sidebar-logo">
         <div class="logo-mark" style="background: linear-gradient(135deg,#7C3AED,#EC4899); box-shadow: 0 4px 16px rgba(139,92,246,0.4); border-radius:12px; width:40px; height:40px; display:flex; align-items:center; justify-content:center; color:#fff"><i class="fas fa-compass" style="font-size:22px"></i></div>
         <div class="logo-text-wrap" style="display:flex; flex-direction:column; justify-content:center">
-          <span class="logo-name" style="font-family:'Outfit',sans-serif; font-weight:800; font-size:18px; line-height:1.2; background: linear-gradient(135deg,#7C3AED,#EC4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">FortuneFlow</span>
+          <span class="logo-name" style="font-family:'Outfit',sans-serif; font-weight:800; font-size:18px; line-height:1.2; background: linear-gradient(135deg,#7C3AED,#EC4899); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">FortuneFlow</span>
           <span class="logo-tagline" style="color:var(--text3); font-size:10.5px; text-transform:uppercase; letter-spacing:1px; font-weight:700;">Magic Compass</span>
         </div>
       </div>
@@ -345,6 +343,13 @@
           <div class="card-header"><h3 class="card-title"><i class="fas fa-chart-area"></i> 3-Month Spending Forecast</h3></div>
           <div class="chart-wrap chart-wrap-tall"><canvas id="predChart"></canvas></div>
         </div>
+
+        <div class="card">
+          <div class="card-header"><h3 class="card-title"><i class="fas fa-hand-holding-usd" style="color:var(--success)"></i> How to Save Money in the Future</h3></div>
+          <div class="pred-cat-grid" id="futureSavingsBox">
+            <!-- Populated by JS -->
+          </div>
+        </div>
       </section>
 
       <!-- ==============================
@@ -647,4 +652,3 @@
 <script src="onboarding.js"></script>
 </body>
 </html>
-
